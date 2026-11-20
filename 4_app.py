@@ -3,420 +3,330 @@ import pandas as pd
 import numpy as np
 import joblib
 import io
-import math
+import os
+import tempfile
 from fpdf import FPDF
 from datetime import datetime
 
-# ==========================================
-# 1. إعدادات الصفحة والتنسيق الهندسي
-# ==========================================
-st.set_page_config(
-    page_title="نظام حصر الكميات والتسعير الذكي | Iraq Concrete AI",
-    page_icon="🏗️",
-    layout="wide",
-    initial_sidebar_state="expanded"
-)
+# إعدادات الصفحة الاحترافية
+st.set_page_config(page_title="نظام الذكاء الاصطناعي للتسعير الهندسي - العراق", page_icon="🏗️", layout="wide")
 
+# تنسيق الواجهة لدعم اللغة العربية ومظهر تجاري وهندسي فخم
 st.markdown("""
-    <style>
-    @import url('https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800&display=swap');
-    
-    html, body, [class*="css"] {
-        font-family: 'Cairo', sans-serif;
-        direction: rtl;
-        text-align: right;
-    }
-    .main-header {
-        background: linear-gradient(135deg, #1e3a5f 0%, #2c5282 100%);
+<style>
+    .main { direction: rtl; text-align: right; }
+    h1, h2, h3, p, div, label { text-align: right !important; font-family: 'Segoe UI', Tahoma, sans-serif; }
+    .stButton>button { width: 100%; background-color: #0F172A; color: white; font-weight: bold; border-radius: 8px; padding: 12px; border: 1px solid #38BDF8; }
+    .stButton>button:hover { background-color: #1E3A8A; color: #38BDF8; }
+    .team-banner {
+        background: linear-gradient(90deg, #0F172A 0%, #1E3A8A 100%);
         color: white;
-        padding: 1.5rem 2rem;
-        border-radius: 12px;
-        margin-bottom: 1.5rem;
-        box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+        padding: 15px 20px;
+        border-radius: 10px;
+        border-right: 6px solid #38BDF8;
+        margin-bottom: 15px;
     }
-    .section-badge {
-        background-color: #2b6cb0;
-        color: white;
-        padding: 4px 12px;
-        border-radius: 6px;
-        font-weight: 700;
-        margin-left: 8px;
-    }
-    .metric-card {
-        background-color: #f8fafc;
-        border: 1px solid #e2e8f0;
-        border-right: 4px solid #2b6cb0;
-        padding: 12px 16px;
-        border-radius: 8px;
-    }
-    </style>
+    .team-banner h4 { color: #38BDF8 !important; margin: 0 0 8px 0; font-size: 18px; }
+    .team-banner p { color: #F8FAFC !important; margin: 4px 0; font-size: 15px; }
+</style>
 """, unsafe_allow_html=True)
 
 # ==========================================
-# 2. نظام الحماية ومفتاح التفعيل (2026)
+# 1. نظام الحماية ومفتاح التفعيل التجاري
 # ==========================================
-if "authenticated" not in st.session_state:
-    st.session_state.authenticated = False
+VALID_KEYS =VALID_KEYS = ["2026"]
 
-if not st.session_state.authenticated:
+if 'is_activated' not in st.session_state:
+    st.session_state.is_activated = False
+
+if not st.session_state.is_activated:
     st.markdown("""
-        <div class="main-header" style="text-align: center;">
-            <h2>🏗️ نظام الذكاء الاصطناعي لحصر الكميات والتسعير الهندسي</h2>
-            <p>جمهورية العراق | مطابق للدليل القياسي الموحد (2026 - 2030)</p>
-        </div>
+    <div class="team-banner">
+        <h4>🔐 نظام الحماية والترخيص التجاري - النسخة الهندسية المعتمدة</h4>
+        <p><strong>تطوير الفريق الهندسي:</strong> م. سجاد علي | جعفر صادق | مسلم سعد | محمد أحمد</p>
+        <p><strong>إشراف الأستاذ:</strong> الدكتور علي خليل</p>
+    </div>
     """, unsafe_allow_html=True)
     
-    col1, col2, col3 = st.columns([1, 1.5, 1])
-    with col2:
-        st.info("🔒 هذا النظام محمي. يرجى إدخال رمز التفعيل للمتابعة.")
-        passcode = st.text_input("رمز التفعيل (Activation Key):", type="password", placeholder="أدخل الرمز هنا...")
-        if st.button("دخول للنظام", use_container_width=True, type="primary"):
-            if passcode.strip() == "2026":
-                st.session_state.authenticated = True
+    st.warning("⚠️ هذه النسخة محمية بحقوق الملكية الفكرية. يرجى إدخال مفتاح التفعيل (Serial Key) لتشغيل محركات الذكاء الاصطناعي.")
+    col_k1, col_k2 = st.columns([2, 1])
+    with col_k1:
+        user_key = st.text_input("أدخل مفتاح التفعيل الخاص بنسختك:", type="password", placeholder="مثال: IRAQ-AI-2026")
+    with col_k2:
+        st.write("")
+        st.write("")
+        if st.button("🔓 تفعيل البرنامج الآن"):
+            if user_key.strip() in VALID_KEYS:
+                st.session_state.is_activated = True
+                st.success("✅ تم تفعيل النسخة بنجاح! جاري فتح النظام...")
                 st.rerun()
             else:
-                st.error("❌ رمز التفعيل غير صحيح!")
+                st.error("❌ مفتاح التفعيل غير صحيح! يرجى التواصل مع الفريق الهندسي للحصول على ترخيص.")
     st.stop()
 
 # ==========================================
-# 3. تحميل النماذج والبيانات
+# 2. تحميل نماذج الذكاء الاصطناعي والبيانات
 # ==========================================
 @st.cache_resource
-def load_assets():
-    try:
-        model = joblib.load("concrete_ai_model.pkl")
-    except Exception:
-        model = None
-    try:
-        forecast_df = pd.read_csv("iraq_forecast_2026_2030.csv")
-    except Exception:
-        forecast_df = pd.DataFrame()
-    try:
-        gov_df = pd.read_csv("iraq_governorates_factors.csv")
-    except Exception:
-        gov_df = pd.DataFrame()
-    return model, forecast_df, gov_df
+def load_system_assets():
+    ai_model = joblib.load('concrete_ai_model.pkl')
+    timeline_df = pd.read_csv('iraq_forecast_2026_2030.csv')
+    gov_df = pd.read_csv('iraq_governorates_factors.csv', index_col=0)
+    return ai_model, timeline_df, gov_df
 
-model, forecast_df, gov_df = load_assets()
+model, timeline_df, gov_df = load_system_assets()
 
-GOVERNORATES = [
-    "بغداد", "البصرة", "نينوى", "أربيل", "النجف", "كربلاء",
-    "الأنبار", "بابل", "ديالى", "كركوك", "صلاح الدين", "ذي قار",
-    "المثنى", "القادسية", "ميسان", "واسط", "دهوك", "السليمانية"
-]
+if 'boq_list' not in st.session_state:
+    st.session_state.boq_list = []
 
 # ==========================================
-# 4. الشريط الجانبي (هوية الشركة والإشراف)
+# 3. القائمة الجانبية لتخصيص هوية الشركة (White-Label)
 # ==========================================
 with st.sidebar:
-    st.markdown("### 🏢 إعدادات هوية الشركة / المكتب")
-    company_name = st.text_input("اسم الشركة أو المكتب الهندسي:", value="مكتب البناء الحديث للاستشارات الهندسية")
-    project_name = st.text_input("اسم المشروع:", value="مشروع إنشاء بناية هيكلية")
-    uploaded_logo = st.file_uploader("رفع شعار الشركة (Logo)", type=["png", "jpg", "jpeg"])
+    st.header("🏢 إعدادات هوية الشركة / الدائرة")
+    st.caption("ارفع شعار شركتك ليظهر في واجهة النظام وتقارير الـ PDF والـ Excel الرسمية:")
+    uploaded_logo = st.file_uploader("رفع شعار الشركة (PNG / JPG)", type=["png", "jpg", "jpeg"])
+    company_en_name = st.text_input("اسم الشركة بالإنجليزية (للتقرير الرسمي PDF)", value="AL-MUTHANNA ENGINEERING & CONTRACTING CO.")
+    company_ar_name = st.text_input("اسم الشركة / الدائرة بالعربية", value="شركة المثنى للمقاولات والاستشارات الهندسية")
     
-    if uploaded_logo:
-        st.image(uploaded_logo, width=140)
-        
-    st.markdown("---")
+    st.divider()
     st.markdown("### 🎓 حقوق التطوير والإشراف")
-    st.info("""
-    **إشراف:** د. علي خليل  
-    **إعداد وتطوير:** م. سجاد  
-    **المرجع:** الدليل القياسي العراقي وتوقعات السوق (2026-2030)
-    """)
-    if st.button("تسجيل الخروج 🔒", use_container_width=True):
-        st.session_state.authenticated = False
+    st.info("**إشراف:** د. علي خليل\n\n**إعداد:** م. سجاد علي، جعفر صادق، مسلم سعد، محمد أحمد")
+    if st.button("🔒 قفل البرنامج"):
+        st.session_state.is_activated = False
         st.rerun()
 
-# ==========================================
-# 5. الترويسة الرئيسية
-# ==========================================
-st.markdown(f"""
-    <div class="main-header">
-        <h2 style="margin:0;">🏗️ {company_name}</h2>
-        <p style="margin:5px 0 0 0; opacity:0.9;">المشروع: {project_name} | نظام الذرعة والتسعير التنبؤي بالذكاء الاصطناعي</p>
-    </div>
-""", unsafe_allow_html=True)
+# ترويسة البرنامج مع عرض شعار الشركة المرفوع
+head_col1, head_col2 = st.columns([4, 1])
+with head_col1:
+    st.title(f"🏗️ {company_ar_name}")
+    st.subheader("النظام الذكي للتنبؤ بأسعار الفقرات الإنشائية وإعداد جداول الكميات (2026 - 2030)")
+with head_col2:
+    if uploaded_logo is not None:
+        st.image(uploaded_logo, width=130)
+
+st.info("📌 الفقرة المعتمدة: تسلسل (1-1) صب خرسانة غير مسلحة تحت الأسس | محرك التنبؤ الزمني: Ridge Seasonal AI | محرك التسعير: XGBoost (دقة 97.83%)")
+st.divider()
 
 # ==========================================
-# 6. القسم العلوي: الموقع، الزمن، والأسعار التنبؤية
+# 4. مدخلات المشروع والتنبؤ الذكي
 # ==========================================
-col_left, col_right = st.columns([1.1, 1.3], gap="large")
+col1, col2 = st.columns([1, 1.35])
 
-with col_left:
-    st.markdown('<h4><span class="section-badge">1</span> تحديد الموقع والزمن المستقبلي</h4>', unsafe_allow_html=True)
-    c1, c2, c3 = st.columns(3)
-    with c1:
-        selected_gov = st.selectbox("المحافظة العراقية:", GOVERNORATES, index=12) # المثنى افتراضياً
-    with c2:
-        selected_year = st.selectbox("السنة التقديرية:", [2026, 2027, 2028, 2029, 2030], index=0)
-    with c3:
-        selected_month = st.selectbox("الشهر:", list(range(1, 13)), index=10)
-        
-    overhead_pct = st.slider(
-        "نسبة التحميلات الإدارية والأرباح حسب الدليل القياسي (%):",
-        min_value=0, max_value=35, value=15, step=1
-    )
-
-# حساب الأسعار التنبؤية من ملفات البيانات أو النموذج
-def get_predicted_prices(gov, year, month):
-    cement_price = 165000.0
-    sand_price = 20000.0
-    gravel_price = 25000.0
-    labor_wage = 60000.0
+with col1:
+    st.header("1️⃣ تحديد الموقع والزمن المستقبلي")
+    project_name = st.text_input("اسم المشروع", value="مشروع إنشاء مجمع إداري وسكني متكامل")
     
-    if not forecast_df.empty:
-        # محاولة المطابقة مع أعمدة ملف التوقعات
-        cols = [c.lower() for c in forecast_df.columns]
-        temp = forecast_df.copy()
-        temp.columns = cols
-        if 'governorate' in cols and 'year' in cols:
-            sub = temp[(temp['governorate'].astype(str).str.contains(gov, na=False)) & (temp['year'] == year)]
-            if 'month' in cols and not sub.empty:
-                sub_m = sub[sub['month'] == month]
-                if not sub_m.empty:
-                    sub = sub_m
-            if not sub.empty:
-                row = sub.iloc[0]
-                for c in cols:
-                    if 'cement' in c: cement_price = float(row[c])
-                    elif 'sand' in c: sand_price = float(row[c])
-                    elif 'gravel' in c or 'aggregate' in c: gravel_price = float(row[c])
-                    elif 'labor' in c or 'wage' in c: labor_wage = float(row[c])
+    c_loc1, c_loc2, c_loc3 = st.columns(3)
+    with c_loc1:
+        selected_gov = st.selectbox("المحافظة (18 محافظة)", options=gov_df.index.tolist(), index=1)
+    with c_loc2:
+        selected_year = st.selectbox("السنة التنبؤية", options=[2026, 2027, 2028, 2029, 2030], index=0)
+    with c_loc3:
+        selected_month = st.selectbox("الشهر", options=list(range(1, 13)), index=10)
+
+    profit_pct = st.slider("نسبة التحميلات الإدارية والأرباح حسب الدليل (%)", min_value=20, max_value=25, value=22)
+
+    st.divider()
+    st.header("2️⃣ إدخال أبعاد الذرعة الهندسية")
+    part_name = st.text_input("وصف الجزء الإنشائي", value="الجزء الأول - أسس القاطع A")
     
-    # معامل تضخم زمني إضافي بسيط في حال عدم توفر صف مطابق
-    year_factor = 1 + (year - 2026) * 0.035
-    if forecast_df.empty:
-        cement_price *= year_factor
-        sand_price *= year_factor
-        gravel_price *= year_factor
-        labor_wage *= year_factor
-        
-    return cement_price, sand_price, gravel_price, labor_wage
+    d1, d2 = st.columns(2)
+    with d1:
+        count_num = st.number_input("العدد (Count)", min_value=1, value=1, step=1)
+        length_m = st.number_input("الطول (متر)", min_value=0.1, value=30.0, step=1.0)
+    with d2:
+        width_m = st.number_input("العرض (متر)", min_value=0.1, value=20.0, step=1.0)
+        thickness_cm = st.number_input("السمك / الارتفاع (سم)", min_value=5.0, value=10.0, step=1.0)
 
-cement_p, sand_p, gravel_p, labor_p = get_predicted_prices(selected_gov, selected_year, selected_month)
-
-with col_right:
-    st.markdown('<h4><span class="section-badge">2</span> التنبؤ التلقائي بأسعار السوق (AI Market Forecast)</h4>', unsafe_allow_html=True)
-    m1, m2, m3, m4 = st.columns(4)
-    m1.metric("السمنت المقاوم", f"{cement_p:,.0f} د/طن")
-    m2.metric("الرمل المغسول", f"{sand_p:,.0f} د/م³")
-    m3.metric("الحصى المدرج", f"{gravel_p:,.0f} د/م³")
-    m4.metric("أجرة الكادر/يوم", f"{labor_p:,.0f} د/يوم")
-    st.caption(f"⚡ الأسعار محدثة تلقائياً لمحافظة **{selected_gov}** لعام **{selected_year}/{selected_month}** (نموذج التنبؤ XGBoost / Random Forest).")
-
-st.markdown("---")
-
-# ==========================================
-# 7. الجدول الأول: جدول الذرعة الهندسية التفاعلي (مثل Excel)
-# ==========================================
-st.markdown('<h4><span class="section-badge">3</span> جدول الذرعة الهندسية وإدخال الأبعاد (BOQ Dimensions)</h4>', unsafe_allow_html=True)
-st.caption("💡 يمكنك التعديل مباشرة داخل الخلايا، أو إضافة صفوف جديدة بالضغط على علامة (+) أسفل الجدول، أو حذف أي صف.")
-
-# بيانات ابتدائية مطابقة لجدول الإكسل الهندسي
-if "boq_input_df" not in st.session_state:
-    st.session_state.boq_input_df = pd.DataFrame([
-        {"مرفق العمل (وصف الفقرة)": "صب أسس خرسانة مسلحة (1:2:4)", "العدد": 1.0, "الطول (م)": 50.0, "العرض (م)": 0.90, "السمك / الارتفاع (م)": 0.30, "الخصم": 0.0},
-        {"مرفق العمل (وصف الفقرة)": "صب أعمدة خرسانية مسلحة (1:2:4)", "العدد": 12.0, "الطول (م)": 0.40, "العرض (م)": 0.40, "السمك / الارتفاع (م)": 3.20, "الخصم": 0.0},
-        {"مرفق العمل (وصف الفقرة)": "صب سقف خرساني مسلح (1:2:4)", "العدد": 1.0, "الطول (م)": 15.0, "العرض (م)": 10.0, "السمك / الارتفاع (م)": 0.20, "الخصم": 1.50},
-    ])
-
-edited_df = st.data_editor(
-    st.session_state.boq_input_df,
-    num_rows="dynamic",
-    use_container_width=True,
-    column_config={
-        "مرفق العمل (وصف الفقرة)": st.column_config.TextColumn("مرفق العمل (وصف الفقرة)", width="large", required=True),
-        "العدد": st.column_config.NumberColumn("العدد", min_value=0.0, step=1.0, format="%.2f"),
-        "الطول (م)": st.column_config.NumberColumn("الطول (م)", min_value=0.0, step=0.1, format="%.2f"),
-        "العرض (م)": st.column_config.NumberColumn("العرض (م)", min_value=0.0, step=0.1, format="%.2f"),
-        "السمك / الارتفاع (م)": st.column_config.NumberColumn("السمك / الارتفاع (م)", min_value=0.0, step=0.05, format="%.2f"),
-        "الخصم": st.column_config.NumberColumn("الخصم (م³)", min_value=0.0, step=0.1, format="%.2f"),
-    },
-    key="boq_editor"
-)
-
-# ==========================================
-# 8. المعالجة الهندسية وحساب الجدول الثاني (المواد والكادر والكلفة)
-# ==========================================
-# معاملات الدليل القياسي العراقي لخلطة 1:2:4 لكل 1 م³ خرسانة:
-# سمنت = 0.35 طن (350 كغم) | رمل = 0.45 م³ | حصى = 0.80 م³ | إنتاجية فريق العمل = 8 م³/يوم
-CEMENT_PER_M3 = 0.35
-SAND_PER_M3 = 0.45
-GRAVEL_PER_M3 = 0.80
-TEAM_OUTPUT_M3_PER_DAY = 8.0
-
-results_rows = []
-for idx, row in edited_df.iterrows():
-    desc = str(row.get("مرفق العمل (وصف الفقرة)", "")).strip()
-    if not desc:
-        continue
-    cnt = float(row.get("العدد") or 0)
-    length = float(row.get("الطول (م)") or 0)
-    width = float(row.get("العرض (م)") or 0)
-    height = float(row.get("السمك / الارتفاع (م)") or 0)
-    deduct = float(row.get("الخصم") or 0)
+with col2:
+    st.header("3️⃣ التنبؤ التلقائي بأسعار السوق والتسعير")
     
-    # إذا كان أحد الأبعاد صفر (مثلاً بند مقطوعية أو مساحة)، نحسب من القيم غير الصفرية
-    dims = [d for d in [length, width, height] if d > 0]
-    gross_qty = cnt * np.prod(dims) if dims else 0.0
-    net_qty = max(0.0, gross_qty - deduct)
+    row_ts = timeline_df[(timeline_df['Year'] == selected_year) & (timeline_df['Month'] == selected_month)].iloc[0]
+    gov_info = gov_df.loc[selected_gov]
     
-    # حساب المواد المطلوبة للفقرة
-    req_cement = net_qty * CEMENT_PER_M3
-    req_sand = net_qty * SAND_PER_M3
-    req_gravel = net_qty * GRAVEL_PER_M3
-    
-    # حساب الكادر والأجور
-    work_days = math.ceil(net_qty / TEAM_OUTPUT_M3_PER_DAY) if net_qty > 0 else 0
-    crew_desc = f"1 خلفه + 3 عمال ({work_days} يوم)" if net_qty > 0 else "-"
-    
-    mat_cost = (req_cement * cement_p) + (req_sand * sand_p) + (req_gravel * gravel_p)
-    # كلفة الفريق اليومية (خلفه + 3 عمال ≈ 2.5 ضعف أجر العامل القياسي)
-    labor_cost = work_days * (labor_p * 2.5)
-    
-    subtotal = mat_cost + labor_cost
-    total_with_overhead = subtotal * (1 + overhead_pct / 100.0)
-    
-    results_rows.append({
-        "ت": len(results_rows) + 1,
-        "مرفق العمل": desc,
-        "الكمية الصافية (م³)": round(net_qty, 2),
-        "السمنت (طن)": round(req_cement, 2),
-        "الرمل (م³)": round(req_sand, 2),
-        "الحصى (م³)": round(req_gravel, 2),
-        "كلفة المواد (دينار)": round(mat_cost, 0),
-        "الكادر المطلوب": crew_desc,
-        "كلفة العمل (دينار)": round(labor_cost, 0),
-        "الكلفة الكلية التقديرية (دينار)": round(total_with_overhead, 0)
-    })
+    t_factor = gov_info['transport_factor']
+    pred_cement = row_ts['Cement_Ton'] * t_factor
+    pred_sand = row_ts['Sand_m3'] * t_factor
+    pred_gravel = row_ts['Gravel_m3'] * t_factor
+    pred_wood = row_ts['Wood_m2'] * t_factor
+    pred_mix_trans = gov_info['mix_transport'] * (1 + (selected_year - 2026) * 0.03)
+    pred_water = 20000 * (1 + (selected_year - 2026) * 0.03)
+    pred_skilled = gov_info['skilled'] * (1 + (selected_year - 2026) * 0.025)
+    pred_unskilled = gov_info['unskilled'] * (1 + (selected_year - 2026) * 0.025)
 
-results_df = pd.DataFrame(results_rows)
+    status_badge = "🟢 بيانات رسمية (هيأة الإحصاء)" if (selected_year == 2026 and selected_month <= 10) else "🔮 تنبؤ الذكاء الاصطناعي للمستقبل"
+    st.caption(f"حالة البيانات لتاريخ ({selected_month} / {selected_year}) في محافظة ({selected_gov}): **{status_badge}**")
 
-st.markdown("---")
+    p1, p2, p3, p4 = st.columns(4)
+    p1.metric("السمنت المقاوم", f"{pred_cement:,.0f} د/طن")
+    p2.metric("الرمل المغسول", f"{pred_sand:,.0f} د/م³")
+    p3.metric("الحصى المدرج", f"{pred_gravel:,.0f} د/م³")
+    p4.metric("أجرة الخلفة", f"{pred_skilled:,.0f} د/يوم")
 
-# ==========================================
-# 9. الجدول الثاني: جدول المواد المطلوبة والكادر والأجور (تلقائي)
-# ==========================================
-st.markdown('<h4><span class="section-badge">4</span> جدول الكميات والمواد والكلفة الشامل (مربوط آلياً بالأسعار المستقبلية)</h4>', unsafe_allow_html=True)
+    ai_input = pd.DataFrame([{
+        'Cement_Price_Ton': pred_cement,
+        'Sand_Price_m3': pred_sand,
+        'Gravel_Price_m3': pred_gravel,
+        'Wood_Price_m2': pred_wood,
+        'Concrete_Transport_Mix_m3': pred_mix_trans,
+        'Water_Tanker_Price': pred_water,
+        'Skilled_Worker_Wage': pred_skilled,
+        'Unskilled_Worker_Wage': pred_unskilled,
+        'Profit_Margin': profit_pct / 100.0
+    }])
 
-if not results_df.empty:
-    st.dataframe(
-        results_df,
-        use_container_width=True,
-        hide_index=True,
-        column_config={
-            "ت": st.column_config.NumberColumn("ت", width="small"),
-            "الكمية الصافية (م³)": st.column_config.NumberColumn(format="%.2f"),
-            "السمنت (طن)": st.column_config.NumberColumn(format="%.2f"),
-            "الرمل (م³)": st.column_config.NumberColumn(format="%.2f"),
-            "الحصى (م³)": st.column_config.NumberColumn(format="%.2f"),
-            "كلفة المواد (دينار)": st.column_config.NumberColumn(format="%,.0f"),
-            "كلفة العمل (دينار)": st.column_config.NumberColumn(format="%,.0f"),
-            "الكلفة الكلية التقديرية (دينار)": st.column_config.NumberColumn(format="%,.0f"),
-        }
-    )
-    
-    # ==========================================
-    # 10. ملخص الإجماليات للمشروع بالكامل
-    # ==========================================
-    tot_qty = results_df["الكمية الصافية (م³)"].sum()
-    tot_cement = results_df["السمنت (طن)"].sum()
-    tot_sand = results_df["الرمل (م³)"].sum()
-    tot_gravel = results_df["الحصى (م³)"].sum()
-    tot_cost = results_df["الكلفة الكلية التقديرية (دينار)"].sum()
-    
-    st.markdown("### 📊 الخلاصة الإجمالية للمشروع (Grand Total)")
-    s1, s2, s3, s4, s5 = st.columns(5)
-    s1.metric("إجمالي حجم الخرسانة", f"{tot_qty:,.2f} م³")
-    s2.metric("إجمالي السمنت المطلوب", f"{tot_cement:,.2f} طن")
-    s3.metric("إجمالي الرمل المطلوب", f"{tot_sand:,.2f} م³")
-    s4.metric("إجمالي الحصى المطلوب", f"{tot_gravel:,.2f} م³")
-    s5.metric("الكلفة الإجمالية التقديرية", f"{tot_cost:,.0f} د.ع")
-    
+    base_price_10cm = float(model.predict(ai_input)[0])
+    thickness_ratio = thickness_cm / 10.0
+    adjusted_unit_price_m2 = base_price_10cm * (0.25 + 0.75 * thickness_ratio)
+
+    total_area_m2 = count_num * length_m * width_m
+    total_vol_m3 = total_area_m2 * (thickness_cm / 100.0)
+    total_part_price = adjusted_unit_price_m2 * total_area_m2
+
+    req_cement_tons = total_vol_m3 * 0.21
+    req_sand_m3 = total_vol_m3 * 0.486
+    req_gravel_m3 = total_vol_m3 * 0.972
+
     st.markdown("---")
-    
-    # ==========================================
-    # 11. أزرار التصدير الاحترافية (Excel & PDF)
-    # ==========================================
-    st.markdown("### 📥 تصدير جداول الكميات والتسعير")
-    exp_col1, exp_col2 = st.columns(2)
-    
-    # --- تصدير Excel ---
-    with exp_col1:
-        excel_buffer = io.BytesIO()
-        with pd.ExcelWriter(excel_buffer, engine="openpyxl") as writer:
-            edited_df.to_excel(writer, sheet_name="جدول الذرعة والأبعاد", index=False)
-            results_df.to_excel(writer, sheet_name="جدول المواد والكلفة الشامل", index=False)
-            summary_export = pd.DataFrame([{
-                "الشركة": company_name,
-                "المشروع": project_name,
-                "المحافظة": selected_gov,
-                "السنة": selected_year,
-                "نسبة التحميل %": overhead_pct,
-                "إجمالي الخرسانة (م3)": tot_qty,
-                "إجمالي السمنت (طن)": tot_cement,
-                "إجمالي الرمل (م3)": tot_sand,
-                "إجمالي الحصى (م3)": tot_gravel,
-                "الكلفة الإجمالية (دينار)": tot_cost
-            }])
-            summary_export.to_excel(writer, sheet_name="الخلاصة الإجمالية", index=False)
-            
-        st.download_button(
-            label="📊 تحميل جدول الكميات بصيغة Excel (.xlsx)",
-            data=excel_buffer.getvalue(),
-            file_name=f"BOQ_{selected_gov}_{selected_year}.xlsx",
-            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-            use_container_width=True,
-            type="primary"
-        )
-        
-    # --- تصدير PDF ---
-    with exp_col2:
-        def generate_pdf_report():
-            pdf = FPDF(orientation="L", unit="mm", format="A4")
+    r1, r2, r3 = st.columns(3)
+    r1.metric("المساحة الكلية (الذرعة)", f"{total_area_m2:,.1f} م²", f"الحجم: {total_vol_m3:,.2f} م³")
+    r2.metric(f"سعر الوحدة التنبؤي (سمك {thickness_cm:.0f} سم)", f"{adjusted_unit_price_m2:,.0f} دينار/م²")
+    r3.metric("الكلفة الإجمالية للفقرة", f"{total_part_price:,.0f} دينار")
+
+    st.write(f"📦 **المواد المطلوبة لهذا الجزء:** سمنت مقاوم: **{req_cement_tons:.2f} طن** | رمل: **{req_sand_m3:.1f} م³** | حصى: **{req_gravel_m3:.1f} م³**")
+
+    if st.button("➕ إضافة هذا الجزء إلى جدول الكميات الكلي للمشروع (BOQ)"):
+        st.session_state.boq_list.append({
+            "ت": len(st.session_state.boq_list) + 1,
+            "الجزء الإنشائي": part_name,
+            "المحافظة والتاريخ": f"{selected_gov} ({selected_month}/{selected_year})",
+            "العدد": count_num,
+            "الأبعاد (L x W x T)": f"{length_m}m x {width_m}m x {thickness_cm}cm",
+            "المساحة (م²)": round(total_area_m2, 2),
+            "الحجم (م³)": round(total_vol_m3, 2),
+            "سعر الوحدة (دينار/م²)": round(adjusted_unit_price_m2, 0),
+            "المبلغ الإجمالي (دينار)": round(total_part_price, 0),
+            "السمنت (طن)": round(req_cement_tons, 2),
+            "الرمل (م³)": round(req_sand_m3, 1),
+            "الحصى (م³)": round(req_gravel_m3, 1)
+        })
+        st.success(f"✅ تمت إضافة ({part_name}) إلى جدول الكميات!")
+
+st.divider()
+
+# ==========================================
+# 5. جدول الكميات وتصدير PDF + Excel + منحنى التنبؤ
+# ==========================================
+tab1, tab2 = st.tabs(["📋 جدول الكميات (BOQ) والتصدير الرسمي (PDF + Excel)", "📈 منحنى التنبؤ بالأسعار (2026 - 2030)"])
+
+with tab1:
+    if len(st.session_state.boq_list) > 0:
+        boq_df = pd.DataFrame(st.session_state.boq_list)
+        st.dataframe(boq_df, use_container_width=True)
+
+        grand_total = boq_df["المبلغ الإجمالي (دينار)"].sum()
+        sum_area = boq_df["المساحة (م²)"].sum()
+        sum_vol = boq_df["الحجم (م³)"].sum()
+        sum_cement = boq_df["السمنت (طن)"].sum()
+        sum_sand = boq_df["الرمل (م³)"].sum()
+        sum_gravel = boq_df["الحصى (م³)"].sum()
+
+        st.markdown("### 📊 الملخص التجميعي الكلي للمواد والكلف (لكل أجزاء المشروع المضافة):")
+        s1, s2, s3, s4, s5 = st.columns(5)
+        s1.metric("الكلفة الإجمالية للمشروع", f"{grand_total:,.0f} د.ع")
+        s2.metric("إجمالي حجم الخرسانة", f"{sum_vol:,.2f} م³")
+        s3.metric("إجمالي السمنت المطلوب", f"{sum_cement:.2f} طن")
+        s4.metric("إجمالي الرمل المطلوب", f"{sum_sand:.1f} م³")
+        s5.metric("إجمالي الحصى المطلوب", f"{sum_gravel:.1f} م³")
+
+        # دالة إنشاء PDF احترافي مع شعار الشركة المرفوع
+        def generate_official_pdf(df_boq, total_iqd, comp_en, logo_file):
+            pdf = FPDF(orientation='L', unit='mm', format='A4')
             pdf.add_page()
-            pdf.set_font("Helvetica", "B", 14)
-            pdf.cell(0, 10, f"Engineering BOQ & AI Cost Estimate - {selected_gov} ({selected_year})", ln=True, align="C")
-            pdf.set_font("Helvetica", "", 10)
-            pdf.cell(0, 8, f"Overhead & Profit: {overhead_pct}% | Cement: {cement_p:,.0f} IQD | Sand: {sand_p:,.0f} IQD | Gravel: {gravel_p:,.0f} IQD", ln=True, align="C")
-            pdf.ln(4)
             
-            # ترويسة الجدول
-            headers = ["Item #", "Net Qty (m3)", "Cement (Ton)", "Sand (m3)", "Gravel (m3)", "Mat. Cost (IQD)", "Labor Cost (IQD)", "Total Cost (IQD)"]
-            col_widths = [20, 30, 32, 30, 30, 42, 42, 48]
-            pdf.set_font("Helvetica", "B", 9)
-            for h, w in zip(headers, col_widths):
-                pdf.cell(w, 9, h, border=1, align="C")
+            # إضافة شعار الشركة إذا قام المشتري برفعه
+            if logo_file is not None:
+                with tempfile.NamedTemporaryFile(delete=False, suffix=".png") as tmp:
+                    tmp.write(logo_file.getvalue())
+                    tmp_path = tmp.name
+                pdf.image(tmp_path, x=15, y=10, w=25)
+                os.remove(tmp_path)
+
+            pdf.set_font("Arial", 'B', 14)
+            pdf.cell(0, 8, comp_en.encode('ascii', 'ignore').decode('ascii').upper(), ln=True, align='C')
+            pdf.set_font("Arial", 'B', 12)
+            pdf.cell(0, 7, "BILL OF QUANTITIES (BOQ) & AI COST ESTIMATION REPORT", ln=True, align='C')
+            pdf.set_font("Arial", '', 9)
+            pdf.cell(0, 6, f"Report Date: {datetime.now().strftime('%Y-%m-%d %H:%M')} | Iraqi Standard Price Guide Item (1-1)", ln=True, align='C')
+            pdf.ln(8)
+
+            pdf.set_font("Arial", 'B', 9)
+            headers = ["No.", "Section ID", "Count", "Dimensions (L x W x T)", "Area (m2)", "Vol (m3)", "Unit Price (IQD)", "Total Price (IQD)", "Cement (Ton)"]
+            widths = [12, 35, 18, 48, 28, 25, 38, 42, 30]
+            for h, w in zip(headers, widths):
+                pdf.cell(w, 10, h, 1, 0, 'C')
             pdf.ln()
-            
-            pdf.set_font("Helvetica", "", 9)
-            for _, r in results_df.iterrows():
-                vals = [
-                    str(r["ت"]),
-                    f"{r['الكمية الصافية (م³)']:.2f}",
-                    f"{r['السمنت (طن)']:.2f}",
-                    f"{r['الرمل (م³)']:.2f}",
-                    f"{r['الحصى (م³)']:.2f}",
-                    f"{r['كلفة المواد (دينار)']:,.0f}",
-                    f"{r['كلفة العمل (دينار)']:,.0f}",
-                    f"{r['الكلفة الكلية التقديرية (دينار)']:,.0f}"
-                ]
-                for v, w in zip(vals, col_widths):
-                    pdf.cell(w, 8, v, border=1, align="C")
-                pdf.ln()
-                
-            pdf.ln(4)
-            pdf.set_font("Helvetica", "B", 11)
-            pdf.cell(0, 10, f"Grand Total Estimated Cost: {tot_cost:,.0f} IQD  |  Total Concrete: {tot_qty:,.2f} m3", ln=True, align="R")
+
+            pdf.set_font("Arial", '', 9)
+            for idx, r in df_boq.iterrows():
+                dim_clean = str(r['الأبعاد (L x W x T)']).encode('ascii', 'ignore').decode('ascii')
+                pdf.cell(widths[0], 9, str(r['ت']), 1, 0, 'C')
+                pdf.cell(widths[1], 9, f"Part-{r['ت']}", 1, 0, 'C')
+                pdf.cell(widths[2], 9, str(r['العدد']), 1, 0, 'C')
+                pdf.cell(widths[3], 9, dim_clean, 1, 0, 'C')
+                pdf.cell(widths[4], 9, f"{r['المساحة (م²)']:.1f}", 1, 0, 'C')
+                pdf.cell(widths[5], 9, f"{r['الحجم (م³)']:.2f}", 1, 0, 'C')
+                pdf.cell(widths[6], 9, f"{r['سعر الوحدة (دينار/م²)']:,.0f}", 1, 0, 'C')
+                pdf.cell(widths[7], 9, f"{r['المبلغ الإجمالي (دينار)']:,.0f}", 1, 0, 'C')
+                pdf.cell(widths[8], 9, f"{r['السمنت (طن)']:.2f}", 1, 1, 'C')
+
+            pdf.ln(6)
+            pdf.set_font("Arial", 'B', 11)
+            pdf.cell(0, 8, f"TOTAL MATERIALS: Cement = {sum_cement:.2f} Ton | Sand = {sum_sand:.1f} m3 | Gravel = {sum_gravel:.1f} m3", ln=True, align='L')
+            pdf.set_font("Arial", 'B', 12)
+            pdf.cell(0, 10, f"GRAND TOTAL ESTIMATED COST: {total_iqd:,.0f} IQD", ln=True, align='R')
+            pdf.set_font("Arial", 'I', 8)
+            pdf.cell(0, 6, "Powered by Iraqi Construction AI System (Supervised by Dr. Ali Khalil | Eng. Team: Sajjad, Jaafar, Muslim, Mohammed)", ln=True, align='C')
             return bytes(pdf.output())
 
-        st.download_button(
-            label="📄 تحميل التقرير الهندسي بصيغة PDF",
-            data=generate_pdf_report(),
-            file_name=f"Report_BOQ_{selected_gov}_{selected_year}.pdf",
-            mime="application/pdf",
-            use_container_width=True
-        )
-else:
-    st.warning("⚠️ يرجى إدخال فقرة واحدة على الأقل في جدول الذرعة أعلاه لعرض الحسابات.")
+        # دالة إنشاء ملف Excel رسمي (.xlsx)
+        def generate_official_excel(df_boq):
+            output = io.BytesIO()
+            with pd.ExcelWriter(output, engine='openpyxl') as writer:
+                df_boq.to_excel(writer, index=False, sheet_name='جدول الذرعة والكميات')
+                summary_df = pd.DataFrame({
+                    "البيان": ["اسم الشركة", "اسم المشروع", "الكلفة الإجمالية (دينار)", "إجمالي المساحة (م²)", "إجمالي الخرسانة (م³)", "إجمالي السمنت (طن)", "إجمالي الرمل (م³)", "إجمالي الحصى (م³)"],
+                    "القيمة": [company_ar_name, project_name, grand_total, sum_area, sum_vol, sum_cement, sum_sand, sum_gravel]
+                })
+                summary_df.to_excel(writer, index=False, sheet_name='ملخص المواد والكلف')
+            return output.getvalue()
+
+        b1, b2, b3 = st.columns(3)
+        with b1:
+            st.download_button(
+                label="📄 تحميل التقرير الرسمي بصيغة PDF",
+                data=generate_official_pdf(boq_df, grand_total, company_en_name, uploaded_logo),
+                file_name="Official_BOQ_Report.pdf",
+                mime="application/pdf"
+            )
+        with b2:
+            st.download_button(
+                label="📊 تحميل جدول الكميات بصيغة Excel",
+                data=generate_official_excel(boq_df),
+                file_name="Official_BOQ_Project.xlsx",
+                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+            )
+        with b3:
+            if st.button("🗑️ مسح الجدول والبدء بمشروع جديد"):
+                st.session_state.boq_list = []
+                st.rerun()
+    else:
+        st.warning("💡 جدول الكميات فارغ حالياً. أدخل أبعاد الفقرة أعلاه واضغط على زر (➕ إضافة هذا الجزء إلى جدول الكميات).")
+
+with tab2:
+    st.markdown("### 📊 مسار تطور أسعار المواد الإنشائية (البيانات الرسمية 2026 + تنبؤ الذكاء الاصطناعي 2027-2030)")
+    chart_df = timeline_df.copy()
+    chart_df['التاريخ'] = chart_df['Year'].astype(str) + "-" + chart_df['Month'].astype(str).str.zfill(2)
+    chart_df = chart_df.set_index('التاريخ')
+    st.line_chart(chart_df[['Cement_Ton', 'Sand_m3', 'Gravel_m3', 'Wood_m2']])
