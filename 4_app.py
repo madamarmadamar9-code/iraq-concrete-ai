@@ -4,6 +4,7 @@ import numpy as np
 import joblib
 import io
 import os
+import re
 import tempfile
 import matplotlib.pyplot as plt
 import matplotlib.patches as patches
@@ -151,7 +152,7 @@ def generate_pdf_engineering_diagram(b_cat_en, w_cat_en, L, W, T_cm, boq_items):
         ax.annotate("Excavation & Backfill Base", xy=(1.5, 0.47), xytext=(-2.3, 0.47),
                     arrowprops=dict(arrowstyle='->', color='#78350F', lw=1.2), fontsize=8, fontweight='bold', color='#78350F')
 
-        # 2. رسم الفقرات المضافة (أو الفقرة الحالية إذا الجدول فيه عنصر واحد)
+        # 2. رسم الفقرات المضافة
         colors = ['#CBD5E1', '#94A3B8', '#64748B', '#BAE6FD', '#7DD3FC']
         current_y = 0.75
         items_to_draw = boq_items if len(boq_items) > 0 else [{
@@ -184,12 +185,10 @@ def generate_pdf_engineering_diagram(b_cat_en, w_cat_en, L, W, T_cm, boq_items):
         ax.add_patch(patches.Rectangle((7.1, current_y), 0.4, 0.95, linewidth=1.2, edgecolor='#334155', facecolor='#475569'))
         
         if "House" in b_cat_en:
-            # سقف مائل للبيت السكني
             roof_pts = [[2.0, current_y + 0.95], [5.0, current_y + 1.65], [8.0, current_y + 0.95]]
             ax.add_patch(patches.Polygon(roof_pts, closed=True, linewidth=1.5, edgecolor='#0F172A', facecolor='#38BDF8', alpha=0.8))
             ax.text(5.0, current_y + 1.2, "RESIDENTIAL HOUSE", ha='center', va='center', fontsize=7.5, fontweight='bold', color='#0F172A')
         else:
-            # سقف مستوي للبناية / المستشفى
             ax.add_patch(patches.Rectangle((2.1, current_y + 0.95), 5.8, 0.35, linewidth=1.5, edgecolor='#0F172A', facecolor='#38BDF8', alpha=0.8))
             ax.text(5.0, current_y + 1.12, f"{b_cat_en.upper()} SUPERSTRUCTURE", ha='center', va='center', fontsize=8, fontweight='bold', color='#0F172A')
 
@@ -209,10 +208,11 @@ def generate_autocad_dxf(boq_items, b_cat_en):
 
     offset_x = 0.0
     for item in boq_items:
-        dims = str(item['الأبعاد (L x W x T)']).replace('m', '').replace('cm', '').split('x')
-        L_val = float(dims[0].strip())
-        W_val = float(dims[1].strip())
-        T_val = float(dims[2].strip())
+        # استخراج الأرقام الصافية فقط بدون أي أحرف (m أو cm) لتفادي ValueError
+        nums = re.findall(r"[-+]?\d*\.\d+|\d+", str(item['الأبعاد (L x W x T)']))
+        L_val = float(nums[0]) if len(nums) > 0 else 10.0
+        W_val = float(nums[1]) if len(nums) > 1 else 10.0
+        T_val = float(nums[2]) if len(nums) > 2 else 10.0
 
         pts = [
             (offset_x, 0),
