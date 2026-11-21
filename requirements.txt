@@ -6,3 +6,6 @@ xgboost
 joblib
 fpdf2
 openpyxl
+matplotlib
+ezdxf
+pillow
