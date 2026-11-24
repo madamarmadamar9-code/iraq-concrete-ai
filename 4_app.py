@@ -71,7 +71,7 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # ==========================================
-# 1. نظام الحماية ومفتاح التفعيل التجاري
+# 1. نظام الحماية ومفتاح التفعيل (الرمز مخفي عن الشاشة)
 # ==========================================
 VALID_KEYS = ["2026"]
 
@@ -90,7 +90,7 @@ if not st.session_state.is_activated:
     st.warning("⚠️ هذه النسخة محمية بحقوق الملكية الفكرية. يرجى إدخال مفتاح التفعيل (Serial Key) لتشغيل النظام.")
     col_k1, col_k2 = st.columns([2, 1])
     with col_k1:
-        user_key = st.text_input("أدخل مفتاح التفعيل الخاص بنسختك:", type="password", placeholder="2026")
+        user_key = st.text_input("أدخل مفتاح التفعيل الخاص بنسختك:", type="password", placeholder="••••••••")
     with col_k2:
         st.write("")
         st.write("")
@@ -129,7 +129,6 @@ def load_ai_and_data():
         except Exception:
             pass
 
-    # بناء وتدريب النموذج وجداول التنبؤ تلقائياً في حال كانت ملفات السيرفر قديمة
     from xgboost import XGBRegressor
     from sklearn.linear_model import Ridge
 
@@ -553,23 +552,87 @@ item_code_map = {
     "الأعمال الترابية والحفريات والدفن (Earthworks)": 9
 }
 
+# ربط كل نوع منشأ بالفقرات الإنشائية القياسية التي يحتاجها فعلياً
+building_items_map = {
+    "بناية متعددة الطوابق (Multi-Story Building)": [
+        "الأسس - صب خرسانة غير مسلحة (1-1) [1:3:6]",
+        "الأسس المسلحة (Reinforced Foundations) [1:2:4]",
+        "الأعمدة والجسور والسقوف الخرسانية [1:1.5:3]",
+        "أعمال البناء بالطابوق / البلوك (Masonry Walls)",
+        "أعمال حديد التسليح والشيلمان (Reinforcement Steel)",
+        "أعمال الإنهاء واللياسة والأصباغ (Plaster & Paint)",
+        "أعمال الأرضيات والسيراميك والمرمر (Flooring)",
+        "الأعمال الترابية والحفريات والدفن (Earthworks)"
+    ],
+    "بيوت سكنية (Residential Houses)": [
+        "الأسس - صب خرسانة غير مسلحة (1-1) [1:3:6]",
+        "الأسس المسلحة (Reinforced Foundations) [1:2:4]",
+        "الأعمدة والجسور والسقوف الخرسانية [1:1.5:3]",
+        "أعمال البناء بالطابوق / البلوك (Masonry Walls)",
+        "أعمال حديد التسليح والشيلمان (Reinforcement Steel)",
+        "أعمال الإنهاء واللياسة والأصباغ (Plaster & Paint)",
+        "أعمال الأرضيات والسيراميك والمرمر (Flooring)",
+        "الأعمال الترابية والحفريات والدفن (Earthworks)"
+    ],
+    "مدارس ومؤسسات تعليمية (Schools)": [
+        "الأسس - صب خرسانة غير مسلحة (1-1) [1:3:6]",
+        "الأسس المسلحة (Reinforced Foundations) [1:2:4]",
+        "الأعمدة والجسور والسقوف الخرسانية [1:1.5:3]",
+        "أعمال البناء بالطابوق / البلوك (Masonry Walls)",
+        "أعمال حديد التسليح والشيلمان (Reinforcement Steel)",
+        "أعمال الإنهاء واللياسة والأصباغ (Plaster & Paint)",
+        "أعمال الأرضيات والسيراميك والمرمر (Flooring)",
+        "الأعمال الترابية والحفريات والدفن (Earthworks)"
+    ],
+    "مستشفى / مركز صحي (Hospital & Medical)": [
+        "الأسس - صب خرسانة غير مسلحة (1-1) [1:3:6]",
+        "الأسس المسلحة (Reinforced Foundations) [1:2:4]",
+        "الأعمدة والجسور والسقوف الخرسانية [1:1.5:3]",
+        "أعمال البناء بالطابوق / البلوك (Masonry Walls)",
+        "أعمال حديد التسليح والشيلمان (Reinforcement Steel)",
+        "أعمال الإنهاء واللياسة والأصباغ (Plaster & Paint)",
+        "أعمال الأرضيات والسيراميك والمرمر (Flooring)",
+        "الأعمال الترابية والحفريات والدفن (Earthworks)"
+    ],
+    "طرق وجسور ومجسرات (Roads & Bridges)": [
+        "أعمال الطرق والتبليط الأسفلتي (Asphalt & Sub-base)",
+        "الأعمال الترابية والحفريات والدفن (Earthworks)",
+        "الأسس - صب خرسانة غير مسلحة (1-1) [1:3:6]",
+        "الأسس المسلحة (Reinforced Foundations) [1:2:4]",
+        "الأعمدة والجسور والسقوف الخرسانية [1:1.5:3]",
+        "أعمال حديد التسليح والشيلمان (Reinforcement Steel)"
+    ],
+    "شبكات مجاري ومياه (Water & Sewage)": [
+        "الأعمال الترابية والحفريات والدفن (Earthworks)",
+        "الأسس - صب خرسانة غير مسلحة (1-1) [1:3:6]",
+        "الأسس المسلحة (Reinforced Foundations) [1:2:4]",
+        "الأعمدة والجسور والسقوف الخرسانية [1:1.5:3]",
+        "أعمال حديد التسليح والشيلمان (Reinforcement Steel)",
+        "أعمال البناء بالطابوق / البلوك (Masonry Walls)",
+        "أعمال الطرق والتبليط الأسفلتي (Asphalt & Sub-base)"
+    ],
+    "سياجات وجملونات ومخازن (Warehouses & Fences)": [
+        "الأعمال الترابية والحفريات والدفن (Earthworks)",
+        "الأسس - صب خرسانة غير مسلحة (1-1) [1:3:6]",
+        "الأسس المسلحة (Reinforced Foundations) [1:2:4]",
+        "الأعمدة والجسور والسقوف الخرسانية [1:1.5:3]",
+        "أعمال حديد التسليح والشيلمان (Reinforcement Steel)",
+        "أعمال البناء بالطابوق / البلوك (Masonry Walls)",
+        "أعمال الإنهاء واللياسة والأصباغ (Plaster & Paint)"
+    ]
+}
+
 with col1:
     st.header("1️⃣ تحديد نوع المنشأ والموقع والزمن")
     project_name = st.text_input("اسم المشروع", value="مشروع إنشاء مجمع إداري وسكني متكامل")
     
     b_col1, b_col2 = st.columns(2)
     with b_col1:
-        building_choice = st.selectbox("نوع المنشأ الهندسي", options=[
-            "بناية متعددة الطوابق (Multi-Story Building)",
-            "بيوت سكنية (Residential Houses)",
-            "مدارس ومؤسسات تعليمية (Schools)",
-            "مستشفى / مركز صحي (Hospital & Medical)",
-            "طرق وجسور ومجسرات (Roads & Bridges)",
-            "شبكات مجاري ومياه (Water & Sewage)",
-            "سياجات وجملونات ومخازن (Warehouses & Fences)"
-        ], index=0)
+        building_choice = st.selectbox("نوع المنشأ الهندسي", options=list(building_items_map.keys()), index=0)
     with b_col2:
-        item_choice = st.selectbox("اختر الفقرة الإنشائية (الدليل القياسي)", options=list(item_code_map.keys()), index=0)
+        available_items = building_items_map[building_choice]
+        item_choice = st.selectbox("اختر الفقرة الإنشائية (حسب نوع المنشأ)", options=available_items, index=0)
+    st.caption(f"📌 الفقرات الإنشائية المتوافقة مع ({building_choice.split('(')[0].strip()}): **{len(available_items)} فقرات قياسية**")
 
     gov_list = gov_df["Governorate"].tolist()
     default_gov_idx = gov_list.index("المثنى") if "المثنى" in gov_list else 0
@@ -696,6 +759,7 @@ with col2:
     materials_breakdown = []
     trucks_info = []
     labor_days_info = {}
+    selected_brick_1000 = p_brick_ord
 
     if "خرسانة" in item_choice or "الأسس" in item_choice or "الأعمدة" in item_choice:
         unit_label = "م³"
@@ -780,18 +844,19 @@ with col2:
         scaff_water_cost = crew_days * 15000.0
 
         if "عادي" in brick_type:
-            b_unit_price = p_brick_ord / 1000.0
+            selected_brick_1000 = p_brick_ord
             truck_cap = 4000
         elif "جمهوري" in brick_type:
-            b_unit_price = p_brick_rep / 1000.0
+            selected_brick_1000 = p_brick_rep
             truck_cap = 4000
         elif "ثرمستون" in brick_type:
-            b_unit_price = p_thermo / 1000.0
+            selected_brick_1000 = p_thermo
             truck_cap = 1500
         else:
-            b_unit_price = p_block / 1000.0
+            selected_brick_1000 = p_block
             truck_cap = 1200
 
+        b_unit_price = selected_brick_1000 / 1000.0
         mat_cost = (tot_bricks * b_unit_price) + (tot_cement_ton * p_cement_ord) + (tot_sand_m3 * p_sand) + scaff_water_cost
 
         labor_days_info = {
@@ -921,7 +986,7 @@ with col2:
         'Cement_Res_Ton': p_cement_res,
         'Sand_Price_m3': p_sand,
         'Gravel_Price_m3': p_gravel,
-        'Brick_Price_1000': p_brick_ord,
+        'Brick_Price_1000': selected_brick_1000,
         'Rebar_Price_Ton': p_rebar,
         'Asphalt_Price_Ton': p_asphalt,
         'Gypsum_Price_Ton': p_gypsum,
@@ -997,7 +1062,7 @@ with tab1:
     if len(st.session_state.boq_list) > 0:
         boq_df = pd.DataFrame(st.session_state.boq_list)
         display_df = boq_df.drop(columns=["نوع الفقرة_EN"]).copy()
-        st.dataframe(display_df, use_container_width=True)
+        st.dataframe(display_df, use_container_width=True, hide_index=True)
 
         grand_total = boq_df["المبلغ الإجمالي (دينار)"].sum()
         tot_mat_all = boq_df["كلفة المواد (د.ع)"].sum()
@@ -1016,7 +1081,10 @@ with tab1:
             pdf.add_page()
             
             if logo_file is not None:
-                with tempfile.NamedTemporaryFile(delete=False, suffix=".png") as tmp:
+                ext = os.path.splitext(logo_file.name)[1].lower()
+                if ext not in [".png", ".jpg", ".jpeg"]:
+                    ext = ".png"
+                with tempfile.NamedTemporaryFile(delete=False, suffix=ext) as tmp:
                     tmp.write(logo_file.getvalue())
                     tmp_path = tmp.name
                 pdf.image(tmp_path, x=15, y=10, w=25)
@@ -1142,7 +1210,9 @@ with tab1:
 
 with tab2:
     st.subheader("👷 جدول أجور العاملين والكادر الهندسي الرسمي (18 محافظة عراقية - 2026)")
-    wages_display = gov_df.rename(columns={
+    wages_display = gov_df.copy()
+    wages_display.insert(0, "ت", range(1, len(wages_display) + 1))
+    wages_display = wages_display.rename(columns={
         "Governorate": "المحافظة",
         "Skilled": "العامل الماهر / الخلفة (د.ع/يوم)",
         "Semi_Skilled": "العامل شبه الماهر (د.ع/يوم)",
@@ -1152,14 +1222,16 @@ with tab2:
         "Guard": "الحارس (د.ع/يوم)",
         "Transport_Factor": "معامل النقل"
     })
-    st.dataframe(wages_display, use_container_width=True)
+    st.dataframe(wages_display, use_container_width=True, hide_index=True)
 
 with tab3:
     st.subheader("📈 منحنى التنبؤ الزمني بأسعار المواد الإنشائية (محرك Ridge Seasonal: 2026 - 2030)")
     chart_df = timeline_df.copy()
     chart_df['التاريخ'] = chart_df['Year'].astype(str) + "-" + chart_df['Month'].astype(str).str.zfill(2)
     
-    annual_summary = chart_df[chart_df['Month'] == 10][['Year', 'Cement_Res_Ton', 'Cement_Ord_Ton', 'Rebar_Ton', 'Brick_Ord_1000', 'Sand_m3', 'Gravel_m3']].rename(columns={
+    annual_summary = chart_df[chart_df['Month'] == 10][['Year', 'Cement_Res_Ton', 'Cement_Ord_Ton', 'Rebar_Ton', 'Brick_Ord_1000', 'Sand_m3', 'Gravel_m3']].copy()
+    annual_summary.insert(0, "ت", range(1, len(annual_summary) + 1))
+    annual_summary = annual_summary.rename(columns={
         'Year': 'السنة',
         'Cement_Res_Ton': 'السمنت المقاوم (د.ع/طن)',
         'Cement_Ord_Ton': 'السمنت العادي (د.ع/طن)',
@@ -1168,7 +1240,7 @@ with tab3:
         'Sand_m3': 'الرمل الأسود (د.ع/م³)',
         'Gravel_m3': 'الحصى العادي (د.ع/م³)'
     })
-    st.dataframe(annual_summary, use_container_width=True)
+    st.dataframe(annual_summary, use_container_width=True, hide_index=True)
 
     fig_fc, ax_fc = plt.subplots(figsize=(10, 4.2), dpi=140)
     x_idx = np.arange(len(chart_df))
