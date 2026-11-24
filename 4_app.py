@@ -1,10 +1,13 @@
 import streamlit as st
 import pandas as pd
 import numpy as np
-import joblib
 import io
 import os
 import re
+import json
+import uuid
+import math
+import joblib
 import tempfile
 import matplotlib.pyplot as plt
 import matplotlib.patches as patches
@@ -12,26 +15,58 @@ import ezdxf
 from fpdf import FPDF
 from datetime import datetime
 
-# إعدادات الصفحة الاحترافية
+# ==========================================
+# إعدادات الصفحة وتنسيق الواجهة العربية
+# ==========================================
 st.set_page_config(page_title="نظام الذكاء الاصطناعي للتسعير الهندسي - العراق", page_icon="🏗️", layout="wide")
 
-# تنسيق الواجهة لدعم اللغة العربية ومظهر تجاري وهندسي فخم
 st.markdown("""
 <style>
     .main { direction: rtl; text-align: right; }
-    h1, h2, h3, p, div, label { text-align: right !important; font-family: 'Segoe UI', Tahoma, sans-serif; }
-    .stButton>button { width: 100%; background-color: #0F172A; color: white; font-weight: bold; border-radius: 8px; padding: 12px; border: 1px solid #38BDF8; }
+    h1, h2, h3, h4, p, div, label, span { text-align: right !important; font-family: 'Segoe UI', Tahoma, sans-serif; }
+    .stButton>button {
+        width: 100%; background-color: #0F172A; color: white; font-weight: bold;
+        border-radius: 8px; padding: 11px; border: 1px solid #38BDF8; transition: 0.2s;
+    }
     .stButton>button:hover { background-color: #1E3A8A; color: #38BDF8; }
     .team-banner {
         background: linear-gradient(90deg, #0F172A 0%, #1E3A8A 100%);
-        color: white;
-        padding: 15px 20px;
-        border-radius: 10px;
-        border-right: 6px solid #38BDF8;
-        margin-bottom: 15px;
+        color: white; padding: 15px 20px; border-radius: 10px;
+        border-right: 6px solid #38BDF8; margin-bottom: 15px;
     }
     .team-banner h4 { color: #38BDF8 !important; margin: 0 0 8px 0; font-size: 18px; }
     .team-banner p { color: #F8FAFC !important; margin: 4px 0; font-size: 15px; }
+
+    /* إظهار جميع النصوص والوحدات بجانب الأرقام كاملة دون قص */
+    [data-testid="stMetric"] {
+        background-color: #F8FAFC;
+        border: 1px solid #E2E8F0;
+        border-radius: 8px;
+        padding: 10px 12px;
+        direction: rtl;
+    }
+    [data-testid="stMetricLabel"] {
+        font-size: 0.88rem !important;
+        white-space: normal !important;
+        overflow: visible !important;
+        text-overflow: clip !important;
+        line-height: 1.3 !important;
+    }
+    [data-testid="stMetricValue"] {
+        font-size: 1.28rem !important;
+        font-weight: 700 !important;
+        white-space: normal !important;
+        overflow: visible !important;
+        text-overflow: clip !important;
+        word-break: keep-all !important;
+        line-height: 1.35 !important;
+        direction: rtl !important;
+    }
+    [data-testid="stMetricDelta"] {
+        font-size: 0.85rem !important;
+        white-space: normal !important;
+        overflow: visible !important;
+    }
 </style>
 """, unsafe_allow_html=True)
 
@@ -52,10 +87,10 @@ if not st.session_state.is_activated:
     </div>
     """, unsafe_allow_html=True)
     
-    st.warning("⚠️ هذه النسخة محمية بحقوق الملكية الفكرية. يرجى إدخال مفتاح التفعيل (Serial Key) لتشغيل محركات الذكاء الاصطناعي.")
+    st.warning("⚠️ هذه النسخة محمية بحقوق الملكية الفكرية. يرجى إدخال مفتاح التفعيل (Serial Key) لتشغيل النظام.")
     col_k1, col_k2 = st.columns([2, 1])
     with col_k1:
-        user_key = st.text_input("أدخل مفتاح التفعيل الخاص بنسختك:", type="password", placeholder="مثال: IRAQ-AI-2026")
+        user_key = st.text_input("أدخل مفتاح التفعيل الخاص بنسختك:", type="password", placeholder="2026")
     with col_k2:
         st.write("")
         st.write("")
@@ -65,111 +100,125 @@ if not st.session_state.is_activated:
                 st.success("✅ تم تفعيل النسخة بنجاح! جاري فتح النظام...")
                 st.rerun()
             else:
-                st.error("❌ مفتاح التفعيل غير صحيح! يرجى التواصل مع الفريق الهندسي للحصول على ترخيص.")
+                st.error("❌ مفتاح التفعيل غير صحيح!")
     st.stop()
 
 # ==========================================
-# 2. تحميل نماذج الذكاء الاصطناعي والبيانات
+# 2. تحميل مخرجات الملفات الثلاثة الأولى (AI Model + Forecast CSV + Governorates CSV)
 # ==========================================
 @st.cache_resource
-def load_system_assets():
-    ai_model = joblib.load('concrete_ai_model.pkl')
-    timeline_df = pd.read_csv('iraq_forecast_2026_2030.csv')
-    gov_df = pd.read_csv('iraq_governorates_factors.csv', index_col=0)
-    return ai_model, timeline_df, gov_df
+def load_ai_and_data():
+    missing_files = []
+    for fname in ['concrete_ai_model.pkl', 'iraq_forecast_2026_2030.csv', 'iraq_governorates_factors.csv']:
+        if not os.path.exists(fname):
+            missing_files.append(fname)
+    if missing_files:
+        return None, None, None, missing_files
 
-model, timeline_df, gov_df = load_system_assets()
+    bundle = joblib.load('concrete_ai_model.pkl')
+    forecast_df = pd.read_csv('iraq_forecast_2026_2030.csv')
+    gov_df = pd.read_csv('iraq_governorates_factors.csv')
+    return bundle, forecast_df, gov_df, []
+
+ai_bundle, timeline_df, gov_df, missing = load_ai_and_data()
+
+if missing:
+    st.error(f"⚠️ الملفات التالية غير موجودة بعد: `{', '.join(missing)}`")
+    st.info("يرجى تشغيل الملفات الثلاثة الأولى بالترتيب في التيرمنال أولاً:\n1. `python 1_generate_data.py`\n2. `python 2_train_ai.py`\n3. `python 3_forecast_engine.py`")
+    st.stop()
+
+ai_model = ai_bundle["model"]
+ai_model_name = ai_bundle["model_name"]
+ai_r2_score = ai_bundle["r2_score"]
+ai_features = ai_bundle["features"]
+
+origin_multipliers = {
+    "عراقي المنشأ (السعر القياسي للنشرة)": 1.00,
+    "عربي المنشأ": 1.18,
+    "أجنبي المنشأ (تركي/إيراني/مستورد)": 1.32
+}
 
 if 'boq_list' not in st.session_state:
     st.session_state.boq_list = []
 
 # ==========================================
-# دوال مساعدة (تنسيق المواد + رسم PDF + توليد ملف AutoCAD DXF)
+# 3. دوال الرسم الهندسي + التصدير (PDF / Excel / AutoCAD DXF / Revit Dynamo .dyn)
 # ==========================================
-def format_material_val(val, decimals=2):
-    if val is None or pd.isna(val) or float(val) <= 0:
-        return "-"
-    return f"{float(val):.{decimals}f}"
-
 def get_en_building_label(ar_choice):
     mapping = {
-        "بناية متعددة الطوابق (Building)": "Multi-Story Building",
+        "بناية متعددة الطوابق (Multi-Story Building)": "Multi-Story Building",
         "بيوت سكنية (Residential Houses)": "Residential House",
-        "طرق وجسور (Roads & Highways)": "Road & Pavement Section",
-        "مستشفى / مركز صحي (Hospital)": "Hospital & Medical Center"
+        "مدارس ومؤسسات تعليمية (Schools)": "Educational School Building",
+        "مستشفى / مركز صحي (Hospital & Medical)": "Hospital & Medical Center",
+        "طرق وجسور ومجسرات (Roads & Bridges)": "Road & Highway Section",
+        "شبكات مجاري ومياه (Water & Sewage)": "Infrastructure & Piping",
+        "سياجات وجملونات ومخازن (Warehouses & Fences)": "Industrial Warehouse & Fence"
     }
-    return mapping.get(ar_choice, "Building Structure")
+    return mapping.get(ar_choice, "Civil Engineering Structure")
 
 def get_en_item_label(ar_item):
     mapping = {
-        "الأسس - صب خرسانة غير مسلحة (1-1)": "Foundation Blinding Concrete (1-1)",
-        "الأسس المسلحة (Reinforced Foundations)": "Reinforced Concrete Footings",
-        "أعمال الدفن الترابي والحفريات (Backfill)": "Earthworks & Sub-base Backfill",
-        "أعمال الطرق والتبليط (Road Sub-base & Concrete)": "Road Concrete Slab & Sub-base"
+        "الأسس - صب خرسانة غير مسلحة (1-1) [1:3:6]": "Foundation Blinding Concrete (1-1)",
+        "الأسس المسلحة (Reinforced Foundations) [1:2:4]": "Reinforced Concrete Footings",
+        "الأعمدة والجسور والسقوف الخرسانية [1:1.5:3]": "RC Columns, Beams & Slabs",
+        "أعمال البناء بالطابوق / البلوك (Masonry Walls)": "Brick / Block Masonry Wall",
+        "أعمال حديد التسليح والشيلمان (Reinforcement Steel)": "Reinforcement Rebar Steel",
+        "أعمال الطرق والتبليط الأسفلتي (Asphalt & Sub-base)": "Road Asphalt & Sub-base",
+        "أعمال الإنهاء واللياسة والأصباغ (Plaster & Paint)": "Finishing, Plaster & Painting",
+        "أعمال الأرضيات والسيراميك والمرمر (Flooring)": "Ceramic & Marble Flooring",
+        "الأعمال الترابية والحفريات والدفن (Earthworks)": "Earthworks & Backfill"
     }
-    return mapping.get(ar_item, "Concrete Work")
+    return mapping.get(ar_item, "Engineering Work Item")
 
 def generate_pdf_engineering_diagram(b_cat_en, w_cat_en, L, W, T_cm, boq_items):
-    fig, ax = plt.subplots(figsize=(9.5, 4.3), dpi=150)
+    fig, ax = plt.subplots(figsize=(10.5, 5.2), dpi=160)
     ax.set_facecolor('#F8FAFC')
     
-    # إذا كان الاختيار طرق (Roads) يرسم مقطع عرضي للطريق بطبقاته
-    if "Road" in b_cat_en:
+    if "Road" in b_cat_en or "Asphalt" in w_cat_en:
         ax.set_xlim(-1.5, 11.5)
         ax.set_ylim(-0.8, 5.0)
-
-        # طبقة التربة الطبيعية
         ax.add_patch(patches.Rectangle((1.0, 0.3), 8.0, 0.55, linewidth=1.2, edgecolor='#78350F', facecolor='#FDE68A', hatch='///'))
         ax.annotate("Sub-grade Soil Layer", xy=(1.0, 0.57), xytext=(-1.3, 0.57),
-                    arrowprops=dict(arrowstyle='->', color='#78350F', lw=1.2), fontsize=8, fontweight='bold', color='#78350F')
+                    arrowprops=dict(arrowstyle='->', color='#78350F', lw=1.2), fontsize=8.5, fontweight='bold', color='#78350F')
 
-        # طبقة السبيس (Sub-base)
         ax.add_patch(patches.Rectangle((1.2, 0.85), 7.6, 0.65, linewidth=1.2, edgecolor='#475569', facecolor='#CBD5E1', hatch='..'))
-        ax.annotate("Compacted Sub-base", xy=(8.8, 1.17), xytext=(9.2, 1.17),
-                    arrowprops=dict(arrowstyle='->', color='#334155', lw=1.2), fontsize=8, fontweight='bold', color='#334155')
+        ax.annotate("Compacted Sub-base (Class B)", xy=(8.8, 1.17), xytext=(9.1, 1.17),
+                    arrowprops=dict(arrowstyle='->', color='#334155', lw=1.2), fontsize=8.5, fontweight='bold', color='#334155')
 
-        # طبقة الصب الخرساني للطريق
-        ax.add_patch(patches.Rectangle((1.5, 1.5), 7.0, 0.9, linewidth=2, edgecolor='#0F172A', facecolor='#64748B'))
-        ax.text(5.0, 1.95, f"ROAD PAVEMENT SLAB | L={L:.1f}m x W={W:.1f}m x T={T_cm:.0f}cm", ha='center', va='center', fontsize=8.5, fontweight='bold', color='white')
+        ax.add_patch(patches.Rectangle((1.5, 1.5), 7.0, 0.9, linewidth=2, edgecolor='#0F172A', facecolor='#334155'))
+        ax.text(5.0, 1.95, f"ASPHALT / CONCRETE PAVEMENT | L={L:.1f}m x W={W:.1f}m x T={T_cm:.0f}cm", ha='center', va='center', fontsize=8.5, fontweight='bold', color='white')
 
-        # خط منتصف الطريق
         ax.plot([2.0, 8.0], [2.45, 2.45], linestyle='--', color='#FACC15', linewidth=2)
-
         ax.annotate('', xy=(1.5, 2.9), xytext=(8.5, 2.9), arrowprops=dict(arrowstyle='<->', color='#DC2626', lw=1.5))
         ax.text(5.0, 3.15, f"Road Width (W) = {W:.2f} m  |  Segment Length (L) = {L:.2f} m", ha='center', va='center', fontsize=9, fontweight='bold', color='#DC2626')
-
         ax.set_title(f"ENGINEERING ROAD CROSS-SECTION & DIMENSIONS ({w_cat_en.upper()})", fontsize=11, fontweight='bold', color='#0F172A', pad=10)
-
-    # إذا كان الاختيار بناية أو بيوت أو مستشفى
     else:
         ax.set_xlim(-2.5, 12.5)
         total_layers = max(1, len(boq_items))
-        max_y = max(5.5, 1.5 + total_layers * 0.85 + 1.8)
+        max_y = max(5.8, 1.6 + total_layers * 0.85 + 1.8)
         ax.set_ylim(-0.4, max_y)
 
-        # 1. طبقة الحفريات والدفن بالأسفل
         ax.add_patch(patches.Rectangle((1.5, 0.2), 7.0, 0.55, linewidth=1.2, edgecolor='#78350F', facecolor='#FDE68A', hatch='///'))
-        ax.annotate("Excavation & Backfill Base", xy=(1.5, 0.47), xytext=(-2.3, 0.47),
-                    arrowprops=dict(arrowstyle='->', color='#78350F', lw=1.2), fontsize=8, fontweight='bold', color='#78350F')
+        ax.annotate("Excavation & Sub-base Layer", xy=(1.5, 0.47), xytext=(-2.3, 0.47),
+                    arrowprops=dict(arrowstyle='->', color='#78350F', lw=1.2), fontsize=8.5, fontweight='bold', color='#78350F')
 
-        # 2. رسم الفقرات المضافة
-        colors = ['#CBD5E1', '#94A3B8', '#64748B', '#BAE6FD', '#7DD3FC']
+        colors = ['#CBD5E1', '#94A3B8', '#64748B', '#BAE6FD', '#7DD3FC', '#A7F3D0']
         current_y = 0.75
         items_to_draw = boq_items if len(boq_items) > 0 else [{
-            'ت': 1, 'الأبعاد (L x W x T)': f"{L}m x {W}m x {T_cm}cm",
-            'الحجم (م³)': round(L * W * (T_cm / 100.0), 2), 'نوع الفقرة_EN': w_cat_en
+            'ت': 1, 'الأبعاد': f"{L}m x {W}m x {T_cm}cm",
+            'الكمية': round(L * W * (T_cm / 100.0), 2), 'الوحدة': 'م3', 'نوع الفقرة_EN': w_cat_en
         }]
 
         for idx, item in enumerate(items_to_draw):
             c = colors[idx % len(colors)]
-            w_rect = max(3.6, 7.0 - idx * 0.35)
+            w_rect = max(3.6, 7.0 - idx * 0.3)
             x_start = 5.0 - (w_rect / 2.0)
             rect = patches.Rectangle((x_start, current_y), w_rect, 0.72, linewidth=1.5, edgecolor='#0F172A', facecolor=c, hatch='..')
             ax.add_patch(rect)
             
-            dim_txt = str(item['الأبعاد (L x W x T)']).encode('ascii', 'ignore').decode('ascii')
-            vol_txt = item['الحجم (م³)']
-            ax.text(5.0, current_y + 0.36, f"Part-{item['ت']} | {dim_txt} | Vol: {vol_txt} m3", ha='center', va='center', fontsize=8, fontweight='bold', color='#0F172A')
+            dim_txt = str(item['الأبعاد']).encode('ascii', 'ignore').decode('ascii')
+            qty_txt = item['الكمية']
+            ax.text(5.0, current_y + 0.36, f"Part-{item['ت']} | {dim_txt} | Qty: {qty_txt}", ha='center', va='center', fontsize=8, fontweight='bold', color='#0F172A')
 
             item_en_lbl = item.get('نوع الفقرة_EN', w_cat_en)
             if idx % 2 == 0:
@@ -180,7 +229,6 @@ def generate_pdf_engineering_diagram(b_cat_en, w_cat_en, L, W, T_cm, boq_items):
                             arrowprops=dict(arrowstyle='->', color='#0F172A', lw=1.2), fontsize=8, fontweight='bold', color='#0F172A')
             current_y += 0.78
 
-        # 3. رسم شكل البناية أو البيت فوق الأسس
         ax.add_patch(patches.Rectangle((2.5, current_y), 0.4, 0.95, linewidth=1.2, edgecolor='#334155', facecolor='#475569'))
         ax.add_patch(patches.Rectangle((7.1, current_y), 0.4, 0.95, linewidth=1.2, edgecolor='#334155', facecolor='#475569'))
         
@@ -189,10 +237,10 @@ def generate_pdf_engineering_diagram(b_cat_en, w_cat_en, L, W, T_cm, boq_items):
             ax.add_patch(patches.Polygon(roof_pts, closed=True, linewidth=1.5, edgecolor='#0F172A', facecolor='#38BDF8', alpha=0.8))
             ax.text(5.0, current_y + 1.2, "RESIDENTIAL HOUSE", ha='center', va='center', fontsize=7.5, fontweight='bold', color='#0F172A')
         else:
-            ax.add_patch(patches.Rectangle((2.1, current_y + 0.95), 5.8, 0.35, linewidth=1.5, edgecolor='#0F172A', facecolor='#38BDF8', alpha=0.8))
-            ax.text(5.0, current_y + 1.12, f"{b_cat_en.upper()} SUPERSTRUCTURE", ha='center', va='center', fontsize=8, fontweight='bold', color='#0F172A')
+            ax.add_patch(patches.Rectangle((2.1, current_y + 0.95), 5.8, 0.38, linewidth=1.5, edgecolor='#0F172A', facecolor='#38BDF8', alpha=0.8))
+            ax.text(5.0, current_y + 1.14, f"{b_cat_en.upper()} SUPERSTRUCTURE", ha='center', va='center', fontsize=8, fontweight='bold', color='#0F172A')
 
-        ax.set_title(f"STRUCTURAL SECTION & CALLOUTS - {b_cat_en.upper()}", fontsize=11, fontweight='bold', color='#0F172A', pad=10)
+        ax.set_title(f"STRUCTURAL SECTION & ENGINEERING CALLOUTS - {b_cat_en.upper()}", fontsize=11, fontweight='bold', color='#0F172A', pad=10)
 
     ax.axis('off')
     plt.tight_layout()
@@ -201,35 +249,27 @@ def generate_pdf_engineering_diagram(b_cat_en, w_cat_en, L, W, T_cm, boq_items):
 def generate_autocad_dxf(boq_items, b_cat_en):
     doc = ezdxf.new('R2010')
     msp = doc.modelspace()
-    
     doc.layers.add(name="STRUCTURE_PLAN", color=3)
     doc.layers.add(name="DIMENSIONS_TEXT", color=1)
     doc.layers.add(name="CALLOUTS", color=5)
 
     offset_x = 0.0
     for item in boq_items:
-        # استخراج الأرقام الصافية فقط بدون أي أحرف (m أو cm) لتفادي ValueError
-        nums = re.findall(r"[-+]?\d*\.\d+|\d+", str(item['الأبعاد (L x W x T)']))
+        nums = re.findall(r"[-+]?\d*\.\d+|\d+", str(item['الأبعاد']))
         L_val = float(nums[0]) if len(nums) > 0 else 10.0
         W_val = float(nums[1]) if len(nums) > 1 else 10.0
         T_val = float(nums[2]) if len(nums) > 2 else 10.0
 
-        pts = [
-            (offset_x, 0),
-            (offset_x + L_val, 0),
-            (offset_x + L_val, W_val),
-            (offset_x, W_val),
-            (offset_x, 0)
-        ]
+        pts = [(offset_x, 0), (offset_x + L_val, 0), (offset_x + L_val, W_val), (offset_x, W_val), (offset_x, 0)]
         msp.add_lwpolyline(pts, dxfattribs={'layer': 'STRUCTURE_PLAN'})
 
         msp.add_text(
-            f"Part-{item['ت']} ({item.get('نوع الفقرة_EN', 'Concrete')}) - {b_cat_en}",
+            f"Part-{item['ت']} ({item.get('نوع الفقرة_EN', 'Item')}) - {b_cat_en}",
             dxfattribs={'layer': 'CALLOUTS', 'height': 0.45}
         ).set_placement((offset_x, W_val + 1.2))
 
         msp.add_text(
-            f"L={L_val}m x W={W_val}m x T={T_val}cm | Vol={item['الحجم (م³)']} m3",
+            f"L={L_val}m x W={W_val}m x T={T_val}cm | Qty={item['الكمية']}",
             dxfattribs={'layer': 'DIMENSIONS_TEXT', 'height': 0.35}
         ).set_placement((offset_x, W_val + 0.5))
 
@@ -239,8 +279,140 @@ def generate_autocad_dxf(boq_items, b_cat_en):
     doc.write(out_stream)
     return out_stream.getvalue().encode('utf-8')
 
+def generate_revit_dynamo_file(boq_items, project_name, b_cat_en):
+    elements_data = []
+    for item in boq_items:
+        nums = re.findall(r"[-+]?\d*\.\d+|\d+", str(item['الأبعاد']))
+        L_val = float(nums[0]) if len(nums) > 0 else 10.0
+        W_val = float(nums[1]) if len(nums) > 1 else 10.0
+        T_val = float(nums[2]) if len(nums) > 2 else 10.0
+        elements_data.append({
+            "id": item['ت'],
+            "name": item.get('نوع الفقرة_EN', 'Structural Element'),
+            "L_m": L_val,
+            "W_m": W_val,
+            "T_cm": T_val,
+            "cost_iqd": item['المبلغ الإجمالي (دينار)']
+        })
+
+    embedded_py_code = f"""import clr
+clr.AddReference('RevitAPI')
+clr.AddReference('RevitServices')
+from Autodesk.Revit.DB import *
+from RevitServices.Persistence import DocumentManager
+from RevitServices.Transactions import TransactionManager
+
+doc = DocumentManager.Instance.CurrentDBDocument
+M_TO_FT = 3.28084
+
+boq_items = {json.dumps(elements_data)}
+
+TransactionManager.Instance.EnsureInTransaction(doc)
+levels = FilteredElementCollector(doc).OfClass(Level).ToElements()
+base_level = levels[0] if len(levels) > 0 else Level.Create(doc, 0.0)
+floor_type = FilteredElementCollector(doc).OfClass(FloorType).FirstElement()
+
+created_count = 0
+offset_x = 0.0
+
+if floor_type is not None:
+    for el in boq_items:
+        p1 = XYZ(offset_x * M_TO_FT, 0, 0)
+        p2 = XYZ((offset_x + el['L_m']) * M_TO_FT, 0, 0)
+        p3 = XYZ((offset_x + el['L_m']) * M_TO_FT, el['W_m'] * M_TO_FT, 0)
+        p4 = XYZ(offset_x * M_TO_FT, el['W_m'] * M_TO_FT, 0)
+        
+        loop = CurveLoop()
+        loop.Append(Line.CreateBound(p1, p2))
+        loop.Append(Line.CreateBound(p2, p3))
+        loop.Append(Line.CreateBound(p3, p4))
+        loop.Append(Line.CreateBound(p4, p1))
+        
+        fl = Floor.Create(doc, [loop], floor_type.Id, base_level.Id)
+        comm = fl.get_Parameter(BuiltInParameter.ALL_MODEL_INSTANCE_COMMENTS)
+        if comm:
+            comm.Set("Part-" + str(el['id']) + " | " + str(el['name']) + " | Cost: " + str(el['cost_iqd']) + " IQD")
+        offset_x += el['L_m'] + 3.0
+        created_count += 1
+
+TransactionManager.Instance.TransactionTaskDone()
+OUT = "Successfully Generated " + str(created_count) + " 3D BIM Elements in Revit!"
+"""
+
+    node_id = str(uuid.uuid4()).replace("-", "")
+    dyn_structure = {
+        "Uuid": str(uuid.uuid4()),
+        "IsCustomNode": False,
+        "Description": f"Iraqi Engineering AI BIM Generator - {b_cat_en}",
+        "Name": "Iraqi_BOQ_Revit_BIM_Model",
+        "ElementResolver": {"ResolutionMap": {}},
+        "Inputs": [],
+        "Outputs": [],
+        "Nodes": [
+            {
+                "ConcreteType": "PythonNodeModels.PythonNode, PythonNodeModels",
+                "NodeType": "PythonScriptNode",
+                "Code": embedded_py_code,
+                "Engine": "CPython3",
+                "VariableInputPorts": True,
+                "Id": node_id,
+                "Inputs": [],
+                "Outputs": [
+                    {
+                        "Id": str(uuid.uuid4()).replace("-", ""),
+                        "Name": "OUT",
+                        "Description": "BIM Generation Result",
+                        "UsingDefaultValue": False,
+                        "Level": 2,
+                        "UseLevels": False,
+                        "KeepListStructure": False
+                    }
+                ],
+                "Replication": "Disabled",
+                "Description": "Generates 3D Structural Elements directly inside Autodesk Revit without external plugins."
+            }
+        ],
+        "Connectors": [],
+        "Dependencies": [],
+        "NodeLibraryDependencies": [],
+        "Bindings": [],
+        "View": {
+            "Dynamo": {
+                "ScaleFactor": 1.0,
+                "HasRunWithoutCrash": True,
+                "IsVisibleInDynamoLibrary": True,
+                "Version": "2.13.0.0",
+                "RunType": "Manual",
+                "RunPeriod": "1000"
+            },
+            "Camera": {
+                "Name": "Background Preview",
+                "EyeX": -17.0, "EyeY": 24.0, "EyeZ": 50.0,
+                "LookX": 12.0, "LookY": -13.0, "LookZ": -58.0,
+                "UpX": 0.0, "UpY": 1.0, "UpZ": 0.0
+            },
+            "NodeViews": [
+                {
+                    "ShowGeometry": True,
+                    "Name": "Iraqi AI BIM Generator (Run in Revit)",
+                    "Id": node_id,
+                    "IsSetAsInput": False,
+                    "IsSetAsOutput": True,
+                    "Excluded": False,
+                    "X": 250.0,
+                    "Y": 200.0
+                }
+            ],
+            "Annotations": [],
+            "X": 0.0,
+            "Y": 0.0,
+            "Zoom": 1.0
+        }
+    }
+    return json.dumps(dyn_structure, indent=2).encode('utf-8')
+
 # ==========================================
-# 3. القائمة الجانبية لتخصيص هوية الشركة (White-Label)
+# 4. القائمة الجانبية لتخصيص هوية الشركة (White-Label)
 # ==========================================
 with st.sidebar:
     st.header("🏢 إعدادات هوية الشركة / الدائرة")
@@ -256,22 +428,34 @@ with st.sidebar:
         st.session_state.is_activated = False
         st.rerun()
 
-# ترويسة البرنامج مع عرض شعار الشركة المرفوع
+# ترويسة البرنامج
 head_col1, head_col2 = st.columns([4, 1])
 with head_col1:
     st.title(f"🏗️ {company_ar_name}")
-    st.subheader("النظام الذكي للتنبؤ بأسعار الفقرات الإنشائية وإعداد جداول الكميات (2026 - 2030)")
+    st.subheader("النظام الذكي للتسعير الهندسي وإعداد جداول الكميات وفق الدليل القياسي العراقي (2026 - 2030)")
 with head_col2:
     if uploaded_logo is not None:
         st.image(uploaded_logo, width=130)
 
-st.info("📌 الفقرة المعتمدة: تسلسل (1-1) صب خرسانة غير مسلحة تحت الأسس | محرك التنبؤ الزمني: Ridge Seasonal AI | محرك التسعير: XGBoost (دقة 97.83%)")
+st.info(f"🤖 محرك الذكاء الاصطناعي المعتمد: **{ai_model_name}** (دقة التدريب: **{ai_r2_score}%**) | محرك التنبؤ الزمني: **Ridge Seasonal (2026–2030)** | المرجع: **الدليل القياسي العراقي ونشرات وزارة التخطيط**")
 st.divider()
 
 # ==========================================
-# 4. مدخلات المشروع والتنبؤ الذكي (واجهة نظيفة بدون رسم)
+# 5. مدخلات المشروع والتسعير القياسي الذكي
 # ==========================================
 col1, col2 = st.columns([1, 1.35])
+
+item_code_map = {
+    "الأسس - صب خرسانة غير مسلحة (1-1) [1:3:6]": 1,
+    "الأسس المسلحة (Reinforced Foundations) [1:2:4]": 2,
+    "الأعمدة والجسور والسقوف الخرسانية [1:1.5:3]": 3,
+    "أعمال البناء بالطابوق / البلوك (Masonry Walls)": 4,
+    "أعمال حديد التسليح والشيلمان (Reinforcement Steel)": 5,
+    "أعمال الطرق والتبليط الأسفلتي (Asphalt & Sub-base)": 6,
+    "أعمال الإنهاء واللياسة والأصباغ (Plaster & Paint)": 7,
+    "أعمال الأرضيات والسيراميك والمرمر (Flooring)": 8,
+    "الأعمال الترابية والحفريات والدفن (Earthworks)": 9
+}
 
 with col1:
     st.header("1️⃣ تحديد نوع المنشأ والموقع والزمن")
@@ -280,104 +464,428 @@ with col1:
     b_col1, b_col2 = st.columns(2)
     with b_col1:
         building_choice = st.selectbox("نوع المنشأ الهندسي", options=[
-            "بناية متعددة الطوابق (Building)",
+            "بناية متعددة الطوابق (Multi-Story Building)",
             "بيوت سكنية (Residential Houses)",
-            "طرق وجسور (Roads & Highways)",
-            "مستشفى / مركز صحي (Hospital)"
+            "مدارس ومؤسسات تعليمية (Schools)",
+            "مستشفى / مركز صحي (Hospital & Medical)",
+            "طرق وجسور ومجسرات (Roads & Bridges)",
+            "شبكات مجاري ومياه (Water & Sewage)",
+            "سياجات وجملونات ومخازن (Warehouses & Fences)"
         ], index=0)
     with b_col2:
-        item_choice = st.selectbox("اختر الفقرة الإنشائية", options=[
-            "الأسس - صب خرسانة غير مسلحة (1-1)",
-            "الأسس المسلحة (Reinforced Foundations)",
-            "أعمال الدفن الترابي والحفريات (Backfill)",
-            "أعمال الطرق والتبليط (Road Sub-base & Concrete)"
-        ], index=0)
+        item_choice = st.selectbox("اختر الفقرة الإنشائية (الدليل القياسي)", options=list(item_code_map.keys()), index=0)
+
+    gov_list = gov_df["Governorate"].tolist()
+    default_gov_idx = gov_list.index("المثنى") if "المثنى" in gov_list else 0
 
     c_loc1, c_loc2, c_loc3 = st.columns(3)
     with c_loc1:
-        selected_gov = st.selectbox("المحافظة (18 محافظة)", options=gov_df.index.tolist(), index=1)
+        selected_gov = st.selectbox("المحافظة (18 محافظة)", options=gov_list, index=default_gov_idx)
     with c_loc2:
         selected_year = st.selectbox("السنة التنبؤية", options=[2026, 2027, 2028, 2029, 2030], index=0)
     with c_loc3:
         selected_month = st.selectbox("الشهر", options=list(range(1, 13)), index=10)
 
-    profit_pct = st.slider("نسبة التحميلات الإدارية والأرباح حسب الدليل (%)", min_value=20, max_value=25, value=22)
+    c_opt1, c_opt2 = st.columns(2)
+    with c_opt1:
+        origin_choice = st.selectbox("منشأ المواد (حسب النشرة)", options=list(origin_multipliers.keys()), index=0)
+    with c_opt2:
+        profit_pct = st.slider("التحميلات الإدارية والأرباح والاندثار (%)", min_value=20, max_value=25, value=20)
+
+    apply_regional_transport = st.checkbox("تطبيق معامل النقل الإقليمي للمحافظة على أسعار المواد", value=False, help="اتركه غير مفعّل لمطابقة أسعار نشرة وزارة التخطيط حرفياً دون أي تعديل.")
 
     st.divider()
-    st.header("2️⃣ إدخال أبعاد الذرعة الهندسية")
-    part_name = st.text_input("وصف الجزء الإنشائي", value="الجزء الأول - أسس القاطع A")
-    
+    st.header("2️⃣ إدخال أبعاد ومواصفات الفقرة")
+    part_name = st.text_input("وصف الجزء الإنشائي", value="الجزء الأول - القاطع A")
+
+    concrete_grade = "C20 (نسبة 1:2:4 - 315 كغم سمنت/م³ مع الضياع)"
+    brick_type = "طابوق عادي (24×11.5×7.5 سم)"
+    brick_waste_pct = 5
+    openings_area = 0.0
+    rebar_dia = 16
+    rebar_bar_len = 12.0
+    paint_coats = 2
+
+    if "خرسانة" in item_choice or "الأسس" in item_choice or "الأعمدة" in item_choice:
+        concrete_grade = st.selectbox("فئة مقاومة الخرسانة ونسبة الخلط (الدليل القياسي)", options=[
+            "C15/C16 (نسبة 1:3:6 - 210 كغم سمنت/م³ مع الضياع)",
+            "C20 (نسبة 1:2:4 - 315 كغم سمنت/م³ مع الضياع)",
+            "C25 (نسبة 1:1.5:3 - 420 كغم سمنت/م³ مع الضياع)",
+            "C30 (خرسانة عالية المقاومة - 450 كغم سمنت/م³ مع الضياع)"
+        ], index=0 if "(1-1)" in item_choice else (1 if "المسلحة" in item_choice else 2))
+
+    elif "الطابوق" in item_choice:
+        b_t1, b_t2 = st.columns(2)
+        with b_t1:
+            brick_type = st.selectbox("نوع الطابوق / البلوك", options=[
+                "طابوق عادي (24×11.5×7.5 سم)",
+                "طابوق جمهوري (24×11.5×7.5 سم)",
+                "ثرمستون (60×20×20 سم)",
+                "بلوك إسمنتي كبير (40×20×20 سم)"
+            ])
+        with b_t2:
+            brick_waste_pct = st.selectbox("نمط البناء ونسبة الهدر", options=[5, 10], format_func=lambda x: f"مستقيم (هدر {x}%)" if x==5 else f"قطري/مقصوص (هدر {x}%)")
+        openings_area = st.number_input("مساحة فتحات الأبواب والشبابيك للطرح (م²)", min_value=0.0, value=0.0, step=0.5)
+
+    elif "حديد" in item_choice:
+        r_t1, r_t2 = st.columns(2)
+        with r_t1:
+            rebar_dia = st.selectbox("قطر شيش التسليح (ملم)", options=[10, 12, 16, 20, 25, 32], index=2)
+        with r_t2:
+            rebar_bar_len = st.number_input("طول الشيش القياسي (متر)", min_value=6.0, value=12.0, step=1.0)
+
+    elif "الإنهاء" in item_choice:
+        f_t1, f_t2 = st.columns(2)
+        with f_t1:
+            paint_coats = st.selectbox("عدد طبقات الطلاء / الإنهاء", options=[1, 2, 3], index=1)
+        with f_t2:
+            openings_area = st.number_input("مساحة الفتحات للطرح (م²)", min_value=0.0, value=0.0, step=0.5)
+
     d1, d2 = st.columns(2)
     with d1:
         count_num = st.number_input("العدد (Count)", min_value=1, value=1, step=1)
         length_m = st.number_input("الطول (متر)", min_value=0.1, value=30.0, step=1.0)
     with d2:
-        width_m = st.number_input("العرض (متر)", min_value=0.1, value=20.0, step=1.0)
-        thickness_cm = st.number_input("السمك / الارتفاع (سم)", min_value=5.0, value=10.0, step=1.0)
+        width_m = st.number_input("العرض / الارتفاع (متر)", min_value=0.1, value=20.0, step=1.0)
+        thickness_cm = st.number_input("السمك (سم)", min_value=0.5, value=10.0, step=1.0)
 
 with col2:
-    st.header("3️⃣ التنبؤ التلقائي بأسعار السوق والتسعير")
+    st.header("3️⃣ التسعير القياسي وتحليل المواد والعمالة")
     
-    row_ts = timeline_df[(timeline_df['Year'] == selected_year) & (timeline_df['Month'] == selected_month)].iloc[0]
-    gov_info = gov_df.loc[selected_gov]
-    
-    t_factor = gov_info['transport_factor']
-    pred_cement = row_ts['Cement_Ton'] * t_factor
-    pred_sand = row_ts['Sand_m3'] * t_factor
-    pred_gravel = row_ts['Gravel_m3'] * t_factor
-    pred_wood = row_ts['Wood_m2'] * t_factor
-    pred_mix_trans = gov_info['mix_transport'] * (1 + (selected_year - 2026) * 0.03)
-    pred_water = 20000 * (1 + (selected_year - 2026) * 0.03)
-    pred_skilled = gov_info['skilled'] * (1 + (selected_year - 2026) * 0.025)
-    pred_unskilled = gov_info['unskilled'] * (1 + (selected_year - 2026) * 0.025)
+    # استخراج الأسعار مباشرة من الجدول الزمني المولّد في الملف الثالث (iraq_forecast_2026_2030.csv)
+    row_m = timeline_df[(timeline_df['Year'] == selected_year) & (timeline_df['Month'] == selected_month)].iloc[0]
+    gov_row = gov_df[gov_df['Governorate'] == selected_gov].iloc[0]
 
-    status_badge = "🟢 بيانات رسمية (هيأة الإحصاء)" if (selected_year == 2026 and selected_month <= 10) else "🔮 تنبؤ الذكاء الاصطناعي للمستقبل"
-    st.caption(f"حالة البيانات لتاريخ ({selected_month} / {selected_year}) في محافظة ({selected_gov}): **{status_badge}**")
+    t_factor = float(gov_row["Transport_Factor"]) if apply_regional_transport else 1.00
+    o_factor = origin_multipliers[origin_choice]
 
-    p1, p2, p3, p4 = st.columns(4)
-    p1.metric("السمنت المقاوم", f"{pred_cement:,.0f} د/طن")
-    p2.metric("الرمل المغسول", f"{pred_sand:,.0f} د/م³")
-    p3.metric("الحصى المدرج", f"{pred_gravel:,.0f} د/م³")
-    p4.metric("أجرة الخلفة", f"{pred_skilled:,.0f} د/يوم")
+    p_cement_ord = float(row_m["Cement_Ord_Ton"]) * t_factor * (1.0 if "عراقي" in origin_choice else 1.08)
+    p_cement_res = float(row_m["Cement_Res_Ton"]) * t_factor * (1.0 if "عراقي" in origin_choice else 1.25)
+    p_sand       = float(row_m["Sand_m3"]) * t_factor
+    p_gravel     = float(row_m["Gravel_m3"]) * t_factor
+    p_brick_ord  = float(row_m["Brick_Ord_1000"]) * t_factor
+    p_brick_rep  = float(row_m["Brick_Rep_1000"]) * t_factor
+    p_thermo     = float(row_m["Thermostone_1000"]) * t_factor * o_factor
+    p_block      = float(row_m["Block_1000"]) * t_factor
+    p_rebar      = float(row_m["Rebar_Ton"]) * t_factor * (1.0 if "عراقي" in origin_choice else 1.06)
+    p_gypsum     = float(row_m["Gypsum_Ton"]) * t_factor
+    p_ceramic    = float(row_m["Ceramic_m2"]) * o_factor
+    p_marble     = float(row_m["Marble_m2"]) * o_factor
+    p_asphalt    = float(row_m["Asphalt_Ton"]) * t_factor
+    p_paint      = float(row_m["Paint_Liter"]) * o_factor
+    p_wood       = float(row_m["Wood_m3"]) * o_factor
 
-    ai_input = pd.DataFrame([{
-        'Cement_Price_Ton': pred_cement,
-        'Sand_Price_m3': pred_sand,
-        'Gravel_Price_m3': pred_gravel,
-        'Wood_Price_m2': pred_wood,
-        'Concrete_Transport_Mix_m3': pred_mix_trans,
-        'Water_Tanker_Price': pred_water,
-        'Skilled_Worker_Wage': pred_skilled,
-        'Unskilled_Worker_Wage': pred_unskilled,
+    years_diff = selected_year - 2026
+    wage_inflation = (1.025 ** years_diff)
+    w_skilled   = float(gov_row["Skilled"]) * wage_inflation
+    w_semi      = float(gov_row["Semi_Skilled"]) * wage_inflation
+    w_unskilled = float(gov_row["Unskilled"]) * wage_inflation
+    w_engineer  = float(gov_row["Engineer"]) * wage_inflation
+    w_admin     = float(gov_row["Admin"]) * wage_inflation
+    w_guard     = float(gov_row["Guard"]) * wage_inflation
+
+    status_badge = "🟢 نشرة رسمية معتمدة (وزارة التخطيط 2026)" if selected_year == 2026 else f"🔮 تنبؤ محرك Ridge لسنة {selected_year}"
+    st.caption(f"المصدر: **{status_badge}** | المحافظة: **{selected_gov}** | معامل النقل: **{t_factor:.2f}**")
+
+    m1, m2, m3, m4 = st.columns(4)
+    m1.metric("السمنت المقاوم", f"{p_cement_res:,.0f} د/طن")
+    m2.metric("الرمل الأسود", f"{p_sand:,.0f} د/م³")
+    m3.metric("الحصى العادي", f"{p_gravel:,.0f} د/م³")
+    m4.metric("أجرة الخلفة", f"{w_skilled:,.0f} د/يوم")
+
+    # ==========================================
+    # حساب المساحة (م²) والحجم (م³) معاً
+    # ==========================================
+    gross_area_m2 = count_num * length_m * width_m
+    net_area_m2 = max(0.1, gross_area_m2 - openings_area)
+    vol_m3 = net_area_m2 * (thickness_cm / 100.0)
+
+    unit_label = "م³"
+    final_qty = vol_m3
+    mat_cost = 0.0
+    labor_cost = 0.0
+    materials_breakdown = []
+    trucks_info = []
+    labor_days_info = {}
+
+    # 1. الأعمال الخرسانية (متطابقة تماماً مع معادلات 1_generate_data.py والدليل القياسي)
+    if "خرسانة" in item_choice or "الأسس" in item_choice or "الأعمدة" in item_choice:
+        unit_label = "م³"
+        final_qty = vol_m3
+
+        if "C15" in concrete_grade:
+            # فقرة (1-1) خرسانة غير مسلحة تحت الأسس 1:3:6: 200 كغم سمنت صافي، 0.45 رمل، 0.90 حصى
+            c_kg_net, s_m3_net, g_m3_net, c_price = 200.0, 0.450, 0.900, p_cement_res
+            wood_factor = 0.004
+            prod_per_day = 12.0
+            skilled_per_crew = 1
+        elif "C20" in concrete_grade:
+            # خرسانة مسلحة للأسس 1:2:4: 300 كغم سمنت صافي، 0.42 رمل، 0.84 حصى
+            c_kg_net, s_m3_net, g_m3_net, c_price = 300.0, 0.420, 0.840, p_cement_res
+            wood_factor = 0.012
+            prod_per_day = 8.0
+            skilled_per_crew = 1
+        elif "C25" in concrete_grade:
+            # خرسانة مسلحة للأعمدة والجسور والسقوف 1:1.5:3: 400 كغم سمنت صافي، 0.40 رمل، 0.80 حصى
+            c_kg_net, s_m3_net, g_m3_net, c_price = 400.0, 0.400, 0.800, p_cement_res
+            wood_factor = 0.025
+            prod_per_day = 4.5
+            skilled_per_crew = 2
+        else:
+            c_kg_net, s_m3_net, g_m3_net, c_price = 430.0, 0.380, 0.760, p_cement_res
+            wood_factor = 0.025
+            prod_per_day = 4.5
+            skilled_per_crew = 2
+
+        tot_cement_ton = (final_qty * c_kg_net / 1000.0) * 1.05  # هدر قياسي 5%
+        tot_sand_m3    = (final_qty * s_m3_net) * 1.08           # هدر قياسي 8%
+        tot_gravel_m3  = (final_qty * g_m3_net) * 1.08           # هدر قياسي 8%
+        tot_wood_m3    = (final_qty * wood_factor)
+
+        crew_days = max(1, math.ceil(final_qty / prod_per_day))
+        equip_daily_rate = 65000.0
+        equip_total_cost = crew_days * equip_daily_rate
+
+        mat_cost = (tot_cement_ton * c_price) + (tot_sand_m3 * p_sand) + (tot_gravel_m3 * p_gravel) + (tot_wood_m3 * p_wood) + equip_total_cost
+
+        labor_days_info = {
+            "عامل ماهر (نجار/خلفة)": crew_days * skilled_per_crew,
+            "عامل شبه ماهر (هزاز/خباطة)": crew_days * 1,
+            "عامل غير ماهر": crew_days * 4,
+        }
+        labor_cost = (
+            (labor_days_info["عامل ماهر (نجار/خلفة)"] * w_skilled) +
+            (labor_days_info["عامل شبه ماهر (هزاز/خباطة)"] * w_semi) +
+            (labor_days_info["عامل غير ماهر"] * w_unskilled)
+        )
+
+        materials_breakdown = [
+            f"السمنت المقاوم (مع هدر 5%): **{tot_cement_ton:.2f} طن** ({math.ceil(tot_cement_ton*20)} كيس)",
+            f"الرمل المغسول (مع هدر 8%): **{tot_sand_m3:.2f} م³**",
+            f"الحصى المدرج (مع هدر 8%): **{tot_gravel_m3:.2f} م³**",
+            f"القالب الخشبي ({tot_wood_m3:.2f} م³) + آليات الخلط والهزاز ({crew_days} يوم): **{(tot_wood_m3 * p_wood) + equip_total_cost:,.0f} د.ع**"
+        ]
+        trucks_info = [
+            f"قلاب رمل (سعة 16 م³): **{math.ceil(tot_sand_m3 / 16.0)} سيارة**",
+            f"قلاب حصى (سعة 16 م³): **{math.ceil(tot_gravel_m3 / 16.0)} سيارة**"
+        ]
+
+    # 2. أعمال البناء بالطابوق والبلوك
+    elif "الطابوق" in item_choice:
+        if thickness_cm >= 20:
+            unit_label = "م³"
+            final_qty = vol_m3
+            bricks_per_unit = 440 if "طابوق" in brick_type else (40 if "ثرمستون" in brick_type else 60)
+            cement_per_unit_ton = 0.090
+            sand_per_unit_m3 = 0.28
+            prod_rate = 3.0
+        else:
+            unit_label = "م²"
+            final_qty = net_area_m2
+            bricks_per_unit = 55 if "طابوق" in brick_type else (8.0 if "ثرمستون" in brick_type else 12.5)
+            cement_per_unit_ton = 0.015
+            sand_per_unit_m3 = 0.05
+            prod_rate = 12.0
+
+        waste_mult = 1.0 + (brick_waste_pct / 100.0)
+        tot_bricks = math.ceil(final_qty * bricks_per_unit * waste_mult)
+        tot_cement_ton = (final_qty * cement_per_unit_ton) * 1.05
+        tot_sand_m3 = (final_qty * sand_per_unit_m3) * 1.08
+
+        crew_days = max(1, math.ceil(final_qty / prod_rate))
+        scaff_water_cost = crew_days * 15000.0
+
+        if "عادي" in brick_type:
+            b_unit_price = p_brick_ord / 1000.0
+            truck_cap = 4000
+        elif "جمهوري" in brick_type:
+            b_unit_price = p_brick_rep / 1000.0
+            truck_cap = 4000
+        elif "ثرمستون" in brick_type:
+            b_unit_price = p_thermo / 1000.0
+            truck_cap = 1500
+        else:
+            b_unit_price = p_block / 1000.0
+            truck_cap = 1200
+
+        mat_cost = (tot_bricks * b_unit_price) + (tot_cement_ton * p_cement_ord) + (tot_sand_m3 * p_sand) + scaff_water_cost
+
+        labor_days_info = {
+            "عامل ماهر (بنّاء)": crew_days * 1,
+            "عامل غير ماهر": crew_days * 2,
+        }
+        labor_cost = (
+            (labor_days_info["عامل ماهر (بنّاء)"] * w_skilled) +
+            (labor_days_info["عامل غير ماهر"] * w_unskilled)
+        )
+
+        num_brick_trucks = math.ceil(tot_bricks / truck_cap)
+        materials_breakdown = [
+            f"عدد الطابوق/البلوك (مع هدر {brick_waste_pct}%): **{tot_bricks:,} قطعة**",
+            f"السمنت (مع هدر 5%): **{tot_cement_ton:.2f} طن**",
+            f"الرمل (مع هدر 8%): **{tot_sand_m3:.2f} م³**",
+            f"السقالات والماء ({crew_days} يوم): **{scaff_water_cost:,.0f} د.ع**"
+        ]
+        trucks_info = [
+            f"سيارة نقل طابوق (سعة {truck_cap:,}): **{num_brick_trucks} سيارة**",
+            f"قلاب رمل (سعة 16 م³): **{math.ceil(tot_sand_m3 / 16.0)} سيارة**"
+        ]
+
+    # 3. أعمال حديد التسليح
+    elif "حديد" in item_choice:
+        unit_label = "طن"
+        kg_per_m = (rebar_dia ** 2) / 162.0
+        total_linear_m = count_num * length_m
+        net_ton = (total_linear_m * kg_per_m) / 1000.0
+        tot_ton_with_waste = net_ton * 1.05
+        final_qty = round(tot_ton_with_waste, 3)
+        total_bars_needed = math.ceil((total_linear_m * 1.05) / rebar_bar_len)
+        binding_wire_kg = tot_ton_with_waste * 11.0
+        binding_wire_cost = binding_wire_kg * 2000.0
+
+        mat_cost = (tot_ton_with_waste * p_rebar) + binding_wire_cost
+        crew_days = max(1, math.ceil(tot_ton_with_waste / 0.5))
+        labor_days_info = {
+            "عامل ماهر (حداد)": crew_days * 1,
+            "عامل شبه ماهر": crew_days * 1,
+        }
+        labor_cost = (labor_days_info["عامل ماهر (حداد)"] * w_skilled) + (labor_days_info["عامل شبه ماهر"] * w_semi)
+
+        materials_breakdown = [
+            f"الوزن الكلي للحديد (مع هدر 5%): **{tot_ton_with_waste:.3f} طن**",
+            f"عدد الأشياش (قطر {rebar_dia} ملم × {rebar_bar_len} م): **{total_bars_needed} شيش**",
+            f"سيم التربيط القياسي ({binding_wire_kg:.1f} كغم): **{binding_wire_cost:,.0f} د.ع**"
+        ]
+        trucks_info = [f"تريلة نقل حديد (سعة 25 طن): **{math.ceil(tot_ton_with_waste / 25.0)} سيارة**"]
+
+    # 4. أعمال الطرق والتبليط الأسفلتي
+    elif "الطرق" in item_choice:
+        unit_label = "م²"
+        final_qty = net_area_m2
+        asphalt_ton = vol_m3 * 2.35 * 1.03
+        crew_days = max(1, math.ceil(final_qty / 200.0))
+        paver_roller_cost = crew_days * 180000.0
+        mat_cost = (asphalt_ton * p_asphalt) + paver_roller_cost
+        labor_days_info = {
+            "عامل ماهر (مشغّل فارشة/حادلة)": crew_days * 2,
+            "عامل غير ماهر": crew_days * 4,
+        }
+        labor_cost = (labor_days_info["عامل ماهر (مشغّل فارشة/حادلة)"] * w_skilled) + (labor_days_info["عامل غير ماهر"] * w_unskilled)
+
+        materials_breakdown = [
+            f"الكونكريت الأسفلتي (كثافة 2.35 طن/م³): **{asphalt_ton:.2f} طن** ({vol_m3:.2f} م³)",
+            f"آليات الفرش والحدل والرابط القيري ({crew_days} يوم): **{paver_roller_cost:,.0f} د.ع**"
+        ]
+        trucks_info = [f"قلاب أسفلت (سعة 20 طن): **{math.ceil(asphalt_ton / 20.0)} سيارة**"]
+
+    # 5. أعمال الإنهاء واللياسة والأصباغ
+    elif "الإنهاء" in item_choice:
+        unit_label = "م²"
+        final_qty = net_area_m2
+        paint_liters = math.ceil((final_qty * paint_coats / 8.0) * 1.05)
+        gypsum_ton = (final_qty * (thickness_cm / 100.0) * 1.15) * 1.08
+        crew_days = max(1, math.ceil(final_qty / 18.0))
+        scaff_cost = crew_days * 12000.0
+        mat_cost = (paint_liters * p_paint) + (gypsum_ton * p_gypsum) + scaff_cost
+        labor_days_info = {"عامل ماهر (صباغ/بيّاض)": crew_days * 1, "عامل شبه ماهر": crew_days * 1}
+        labor_cost = (labor_days_info["عامل ماهر (صباغ/بيّاض)"] * w_skilled) + (labor_days_info["عامل شبه ماهر"] * w_semi)
+
+        materials_breakdown = [
+            f"الأصباغ ({paint_coats} طبقة + هدر 5%): **{paint_liters} لتر**",
+            f"مواد البياض/الجص/المعجون (مع هدر 8%): **{gypsum_ton:.2f} طن**"
+        ]
+        trucks_info = ["نقل مواد إنهاء (سيارة حمل متوسطة): **1 سيارة**"]
+
+    # 6. أعمال الأرضيات والسيراميك والمرمر
+    elif "الأرضيات" in item_choice:
+        unit_label = "م²"
+        final_qty = net_area_m2
+        tile_area_with_waste = final_qty * 1.08
+        cem_ton = final_qty * 0.018 * 1.05
+        sand_m3 = final_qty * 0.06 * 1.08
+        crew_days = max(1, math.ceil(final_qty / 12.0))
+        grout_water_cost = crew_days * 10000.0
+        mat_cost = (tile_area_with_waste * p_ceramic) + (cem_ton * p_cement_ord) + (sand_m3 * p_sand) + grout_water_cost
+        labor_days_info = {"عامل ماهر (مبلّط)": crew_days * 1, "عامل غير ماهر": crew_days * 2}
+        labor_cost = (labor_days_info["عامل ماهر (مبلّط)"] * w_skilled) + (labor_days_info["عامل غير ماهر"] * w_unskilled)
+
+        materials_breakdown = [
+            f"السيراميك/الكاشي (مع هدر 8%): **{tile_area_with_waste:.2f} م²**",
+            f"السمنت: **{cem_ton:.2f} طن** | الرمل: **{sand_m3:.2f} م³**"
+        ]
+        trucks_info = [f"قلاب رمل (سعة 16 م³): **{math.ceil(sand_m3 / 16.0)} سيارة**"]
+
+    # 7. الأعمال الترابية والحفريات والدفن
+    else:
+        unit_label = "م³"
+        final_qty = vol_m3
+        loose_soil_m3 = final_qty * 1.20
+        crew_days = max(1, math.ceil(final_qty / 25.0))
+        compactor_cost = crew_days * 75000.0
+        mat_cost = (loose_soil_m3 * (p_sand * 0.70)) + compactor_cost
+        labor_days_info = {"عامل غير ماهر": crew_days * 3}
+        labor_cost = (labor_days_info["عامل غير ماهر"] * w_unskilled)
+        materials_breakdown = [
+            f"كمية السبيس / التراب النظيف المفكك (معامل حدل 1.20): **{loose_soil_m3:.2f} م³**",
+            f"آليات الحدل والرش بالماء ({crew_days} يوم): **{compactor_cost:,.0f} د.ع**"
+        ]
+        trucks_info = [f"قلاب تراب/سبيس (سعة 16 م³): **{math.ceil(loose_soil_m3 / 16.0)} سيارة**"]
+
+    # التحميلات الإدارية والأرباح والاندثار حسب الدليل القياسي (20% - 25%)
+    direct_cost = mat_cost + labor_cost
+    profit_amount = direct_cost * (profit_pct / 100.0)
+    total_part_price = direct_cost + profit_amount
+    unit_price_final = total_part_price / final_qty if final_qty > 0 else 0.0
+
+    # حساب تقدير نموذج الذكاء الاصطناعي المدرب (XGBoost / Random Forest) للمقارنة العلمية
+    ai_input_df = pd.DataFrame([{
+        'Item_Code': item_code_map[item_choice],
+        'Cement_Ord_Ton': p_cement_ord,
+        'Cement_Res_Ton': p_cement_res,
+        'Sand_Price_m3': p_sand,
+        'Gravel_Price_m3': p_gravel,
+        'Brick_Price_1000': p_brick_ord,
+        'Rebar_Price_Ton': p_rebar,
+        'Asphalt_Price_Ton': p_asphalt,
+        'Gypsum_Price_Ton': p_gypsum,
+        'Ceramic_Price_m2': p_ceramic,
+        'Paint_Price_Liter': p_paint,
+        'Wood_Price_m3': p_wood,
+        'Skilled_Worker_Wage': w_skilled,
+        'Semi_Skilled_Wage': w_semi,
+        'Unskilled_Worker_Wage': w_unskilled,
         'Profit_Margin': profit_pct / 100.0
     }])
-
-    base_price_10cm = float(model.predict(ai_input)[0])
-    thickness_ratio = thickness_cm / 10.0
-    adjusted_unit_price_m2 = base_price_10cm * (0.25 + 0.75 * thickness_ratio)
-
-    total_area_m2 = count_num * length_m * width_m
-    total_vol_m3 = total_area_m2 * (thickness_cm / 100.0)
-    total_part_price = adjusted_unit_price_m2 * total_area_m2
-
-    if "Backfill" in item_choice:
-        req_cement_tons = 0.0
-        req_sand_m3 = 0.0
-        req_gravel_m3 = 0.0
-    else:
-        req_cement_tons = total_vol_m3 * 0.21
-        req_sand_m3 = total_vol_m3 * 0.486
-        req_gravel_m3 = total_vol_m3 * 0.972
+    ai_unit_pred = float(ai_model.predict(ai_input_df[ai_features])[0])
 
     st.markdown("---")
     r1, r2, r3 = st.columns(3)
-    r1.metric("المساحة الكلية (الذرعة)", f"{total_area_m2:,.1f} م²", f"الحجم: {total_vol_m3:,.2f} م³")
-    r2.metric(f"سعر الوحدة التنبؤي (سمك {thickness_cm:.0f} سم)", f"{adjusted_unit_price_m2:,.0f} دينار/م²")
-    r3.metric("الكلفة الإجمالية للفقرة", f"{total_part_price:,.0f} دينار")
+    r1.metric(f"الكمية ({unit_label}) | المساحة", f"{final_qty:,.2f} {unit_label}", f"المساحة: {net_area_m2:,.1f} م²")
+    r2.metric(f"سعر الوحدة القياسي (دينار/{unit_label})", f"{unit_price_final:,.0f} د.ع", f"تقدير {ai_model_name}: {ai_unit_pred:,.0f} د.ع")
+    r3.metric("الكلفة الإجمالية للفقرة", f"{total_part_price:,.0f} د.ع")
 
-    st.write(f"📦 **المواد المطلوبة لهذا الجزء:** سمنت مقاوم: **{format_material_val(req_cement_tons, 2)} طن** | رمل: **{format_material_val(req_sand_m3, 1)} م³** | حصى: **{format_material_val(req_gravel_m3, 1)} م³**")
+    with st.expander("🔍 عرض التحليل القياسي الكامل (المواد، عدد السيارات، يوميات العمال، الأرباح)", expanded=True):
+        c_an1, c_an2 = st.columns(2)
+        with c_an1:
+            st.markdown("**📦 المواد الأولية وعدد السيارات المطلوبة:**")
+            for mb in materials_breakdown:
+                st.write(f"- {mb}")
+            for tr in trucks_info:
+                st.write(f"- 🚛 {tr}")
+        with c_an2:
+            st.markdown(f"**👷 الكادر التنفيذي المباشر ({selected_gov}):**")
+            for role, days in labor_days_info.items():
+                if "ماهر (" in role:
+                    rate = w_skilled
+                elif "شبه" in role:
+                    rate = w_semi
+                else:
+                    rate = w_unskilled
+                st.write(f"- {role}: **{days} يوم** × {rate:,.0f} د.ع")
+            st.caption("ℹ️ الإشراف الهندسي والإدارة والحراسة مشمولة ضمن نسبة التحميلات الإدارية والأرباح (20%–25%).")
+        st.caption(f"💰 كلفة المواد والآليات: **{mat_cost:,.0f} د.ع** | كلفة الأجور المباشرة: **{labor_cost:,.0f} د.ع** | التحميلات والأرباح ({profit_pct}%): **{profit_amount:,.0f} د.ع**")
 
-    if st.button("➕ إضافة هذا الجزء إلى جدول الكميات الكلي للمشروع (BOQ)"):
+    if st.button("➕ إضافة هذه الفقرة إلى جدول الكميات الكلي للمشروع (BOQ)"):
         st.session_state.boq_list.append({
             "ت": len(st.session_state.boq_list) + 1,
             "الجزء الإنشائي": part_name,
@@ -385,48 +893,46 @@ with col2:
             "نوع الفقرة_EN": get_en_item_label(item_choice),
             "المحافظة والتاريخ": f"{selected_gov} ({selected_month}/{selected_year})",
             "العدد": count_num,
-            "الأبعاد (L x W x T)": f"{length_m}m x {width_m}m x {thickness_cm}cm",
-            "المساحة (م²)": round(total_area_m2, 2),
-            "الحجم (م³)": round(total_vol_m3, 2),
-            "سعر الوحدة (دينار/م²)": round(adjusted_unit_price_m2, 0),
+            "الأبعاد": f"{length_m}m x {width_m}m x {thickness_cm}cm",
+            "المساحة (م²)": round(net_area_m2, 2),
+            "الوحدة": unit_label,
+            "الكمية": round(final_qty, 2),
+            "سعر الوحدة (د.ع)": round(unit_price_final, 0),
+            "كلفة المواد (د.ع)": round(mat_cost, 0),
+            "كلفة العمال (د.ع)": round(labor_cost, 0),
             "المبلغ الإجمالي (دينار)": round(total_part_price, 0),
-            "السمنت (طن)": round(req_cement_tons, 2),
-            "الرمل (م³)": round(req_sand_m3, 1),
-            "الحصى (م³)": round(req_gravel_m3, 1)
+            "تفاصيل المواد والسيارات": " | ".join([re.sub(r'\*+', '', x) for x in (materials_breakdown + trucks_info)])
         })
-        st.success(f"✅ تمت إضافة ({part_name}) إلى جدول الكميات!")
+        st.success(f"✅ تمت إضافة ({part_name}) إلى جدول الكميات بنجاح!")
 
 st.divider()
 
 # ==========================================
-# 5. جدول الكميات وتصدير PDF (الجدول + الرسم أسفله) + Excel + AutoCAD
+# 6. جدول الكميات وتصدير (PDF + Excel + AutoCAD DXF + Revit Dynamo .dyn)
 # ==========================================
-tab1, tab2 = st.tabs(["📋 جدول الكميات (BOQ) والتصدير الرسمي (PDF + Excel + AutoCAD)", "📈 منحنى التنبؤ بالأسعار (2026 - 2030)"])
+tab1, tab2, tab3 = st.tabs([
+    "📋 جدول الكميات (BOQ) والتصدير (PDF + Excel + AutoCAD + Revit)",
+    "👷 جدول أجور العاملين الرسمي (18 محافظة)",
+    "📈 منحنى التنبؤ بالأسعار (2026 - 2030)"
+])
 
 with tab1:
     if len(st.session_state.boq_list) > 0:
         boq_df = pd.DataFrame(st.session_state.boq_list)
-        
         display_df = boq_df.drop(columns=["نوع الفقرة_EN"]).copy()
-        display_df["السمنت (طن)"] = display_df["السمنت (طن)"].apply(lambda x: format_material_val(x, 2))
-        display_df["الرمل (م³)"] = display_df["الرمل (م³)"].apply(lambda x: format_material_val(x, 1))
-        display_df["الحصى (م³)"] = display_df["الحصى (م³)"].apply(lambda x: format_material_val(x, 1))
         st.dataframe(display_df, use_container_width=True)
 
         grand_total = boq_df["المبلغ الإجمالي (دينار)"].sum()
-        sum_area = boq_df["المساحة (م²)"].sum()
-        sum_vol = boq_df["الحجم (م³)"].sum()
-        sum_cement = boq_df["السمنت (طن)"].sum()
-        sum_sand = boq_df["الرمل (م³)"].sum()
-        sum_gravel = boq_df["الحصى (م³)"].sum()
+        tot_mat_all = boq_df["كلفة المواد (د.ع)"].sum()
+        tot_lab_all = boq_df["كلفة العمال (د.ع)"].sum()
+        tot_area_all = boq_df["المساحة (م²)"].sum()
 
-        st.markdown("### 📊 الملخص التجميعي الكلي للمواد والكلف (لكل أجزاء المشروع المضافة):")
-        s1, s2, s3, s4, s5 = st.columns(5)
+        st.markdown("### 📊 الملخص المالي والهندسي الكلي للمشروع:")
+        s1, s2, s3, s4 = st.columns(4)
         s1.metric("الكلفة الإجمالية للمشروع", f"{grand_total:,.0f} د.ع")
-        s2.metric("إجمالي حجم الخرسانة", f"{sum_vol:,.2f} م³")
-        s3.metric("إجمالي السمنت المطلوب", f"{sum_cement:.2f} طن")
-        s4.metric("إجمالي الرمل المطلوب", f"{sum_sand:.1f} م³")
-        s5.metric("إجمالي الحصى المطلوب", f"{sum_gravel:.1f} م³")
+        s2.metric("إجمالي كلفة المواد", f"{tot_mat_all:,.0f} د.ع")
+        s3.metric("إجمالي أجور العمال", f"{tot_lab_all:,.0f} د.ع")
+        s4.metric("إجمالي المساحة الكلية", f"{tot_area_all:,.1f} م²")
 
         def generate_official_pdf(df_boq, total_iqd, comp_en, logo_file, b_cat_en, w_cat_en, L_val, W_val, T_val, boq_raw):
             pdf = FPDF(orientation='L', unit='mm', format='A4')
@@ -442,115 +948,167 @@ with tab1:
             pdf.set_font("Arial", 'B', 14)
             pdf.cell(0, 8, comp_en.encode('ascii', 'ignore').decode('ascii').upper(), ln=True, align='C')
             pdf.set_font("Arial", 'B', 12)
-            pdf.cell(0, 7, f"BILL OF QUANTITIES (BOQ) & AI COST ESTIMATION REPORT ({b_cat_en.upper()})", ln=True, align='C')
+            pdf.cell(0, 7, f"BILL OF QUANTITIES (BOQ) & STANDARD PRICE ANALYSIS ({b_cat_en.upper()})", ln=True, align='C')
             pdf.set_font("Arial", '', 9)
-            pdf.cell(0, 6, f"Report Date: {datetime.now().strftime('%Y-%m-%d %H:%M')} | Iraqi Standard Price Guide Item (1-1)", ln=True, align='C')
+            pdf.cell(0, 6, f"Report Date: {datetime.now().strftime('%Y-%m-%d %H:%M')} | Iraqi Ministry of Planning Standard Price Guide", ln=True, align='C')
             pdf.ln(6)
 
-            # 1. جدول الكميات والحسابات في الأعلى
             pdf.set_font("Arial", 'B', 8)
-            headers = [
-                "No.", "Section ID", "Count", "Dimensions (L x W x T)",
-                "Area (m2)", "Vol (m3)", "Unit Price (IQD)", "Total Price (IQD)",
-                "Cement (Ton)", "Sand (m3)", "Gravel (m3)"
-            ]
-            widths = [10, 24, 14, 38, 22, 20, 28, 34, 28, 28, 28]
+            headers = ["No.", "Work Item", "Count", "Dimensions", "Area (m2)", "Unit", "Quantity", "Unit Price", "Materials", "Labor", "Total Cost (IQD)"]
+            widths = [9, 50, 12, 34, 18, 14, 20, 26, 28, 26, 35]
             for h, w in zip(headers, widths):
                 pdf.cell(w, 9, h, 1, 0, 'C')
             pdf.ln()
 
             pdf.set_font("Arial", '', 8)
             for idx, r in df_boq.iterrows():
-                dim_clean = str(r['الأبعاد (L x W x T)']).encode('ascii', 'ignore').decode('ascii')
-                cem_str = format_material_val(r['السمنت (طن)'], 2)
-                snd_str = format_material_val(r['الرمل (م³)'], 1)
-                grv_str = format_material_val(r['الحصى (م³)'], 1)
-
+                dim_clean = str(r['الأبعاد']).encode('ascii', 'ignore').decode('ascii')
+                u_en = "m3" if r['الوحدة'] == "م³" else ("m2" if r['الوحدة'] == "م²" else "Ton")
                 pdf.cell(widths[0], 8, str(r['ت']), 1, 0, 'C')
-                pdf.cell(widths[1], 8, f"Part-{r['ت']}", 1, 0, 'C')
+                pdf.cell(widths[1], 8, str(r['نوع الفقرة_EN'])[:30], 1, 0, 'L')
                 pdf.cell(widths[2], 8, str(r['العدد']), 1, 0, 'C')
                 pdf.cell(widths[3], 8, dim_clean, 1, 0, 'C')
                 pdf.cell(widths[4], 8, f"{r['المساحة (م²)']:.1f}", 1, 0, 'C')
-                pdf.cell(widths[5], 8, f"{r['الحجم (م³)']:.2f}", 1, 0, 'C')
-                pdf.cell(widths[6], 8, f"{r['سعر الوحدة (دينار/م²)']:,.0f}", 1, 0, 'C')
-                pdf.cell(widths[7], 8, f"{r['المبلغ الإجمالي (دينار)']:,.0f}", 1, 0, 'C')
-                pdf.cell(widths[8], 8, cem_str, 1, 0, 'C')
-                pdf.cell(widths[9], 8, snd_str, 1, 0, 'C')
-                pdf.cell(widths[10], 8, grv_str, 1, 1, 'C')
+                pdf.cell(widths[5], 8, u_en, 1, 0, 'C')
+                pdf.cell(widths[6], 8, f"{r['الكمية']:.2f}", 1, 0, 'C')
+                pdf.cell(widths[7], 8, f"{r['سعر الوحدة (د.ع)']:,.0f}", 1, 0, 'C')
+                pdf.cell(widths[8], 8, f"{r['كلفة المواد (د.ع)']:,.0f}", 1, 0, 'C')
+                pdf.cell(widths[9], 8, f"{r['كلفة العمال (د.ع)']:,.0f}", 1, 0, 'C')
+                pdf.cell(widths[10], 8, f"{r['المبلغ الإجمالي (دينار)']:,.0f}", 1, 1, 'C')
 
-            pdf.ln(3)
-            pdf.set_font("Arial", 'B', 10)
-            pdf.cell(0, 6, f"TOTAL MATERIALS: Cement = {sum_cement:.2f} Ton | Sand = {sum_sand:.1f} m3 | Gravel = {sum_gravel:.1f} m3", ln=True, align='L')
+            pdf.ln(4)
             pdf.set_font("Arial", 'B', 11)
-            pdf.cell(0, 7, f"GRAND TOTAL ESTIMATED COST: {total_iqd:,.0f} IQD", ln=True, align='R')
+            pdf.cell(0, 7, f"GRAND TOTAL ESTIMATED PROJECT COST: {total_iqd:,.0f} IQD", ln=True, align='R')
 
-            # 2. المخطط الهندسي المرسوم بالأبعاد والتأشيرات أسفل الجدول مباشرة
+            pdf.add_page()
+            pdf.set_font("Arial", 'B', 12)
+            pdf.cell(0, 8, "ENGINEERING CROSS-SECTION & STRUCTURAL SCHEMATIC DIAGRAM", ln=True, align='C')
             pdf_fig = generate_pdf_engineering_diagram(b_cat_en, w_cat_en, L_val, W_val, T_val, boq_raw)
             with tempfile.NamedTemporaryFile(delete=False, suffix=".png") as tmp_img:
-                pdf_fig.savefig(tmp_img.name, format='png', bbox_inches='tight', dpi=150)
+                pdf_fig.savefig(tmp_img.name, format='png', bbox_inches='tight', dpi=160)
                 img_path = tmp_img.name
             plt.close(pdf_fig)
 
-            if pdf.get_y() > 118:
-                pdf.add_page()
-            pdf.image(img_path, x=42, y=pdf.get_y() + 2, w=210)
+            pdf.image(img_path, x=22, y=28, w=250)
             os.remove(img_path)
 
             pdf.set_y(-15)
             pdf.set_font("Arial", 'I', 8)
-            pdf.cell(0, 6, "Powered by Iraqi Construction AI System (Supervised by Dr. Ali Khalil | Eng. Team: Sajjad, Jaafar, Muslim, Mohammed)", ln=True, align='C')
-            return bytes(pdf.output())
+            pdf.cell(0, 6, "Iraqi Construction AI & Standard Pricing System (Supervised by Dr. Ali Khalil | Eng. Team: Sajjad, Jaafar, Muslim, Mohammed)", ln=True, align='C')
 
-        def generate_official_excel(df_boq):
+            raw_out = pdf.output(dest='S')
+            return bytes(raw_out) if isinstance(raw_out, (bytes, bytearray)) else raw_out.encode('latin-1')
+
+        def generate_excel_boq(df_display, total_iqd, tot_mat, tot_lab):
             output = io.BytesIO()
-            excel_df = df_boq.drop(columns=["نوع الفقرة_EN"]).copy()
-            excel_df["السمنت (طن)"] = excel_df["السمنت (طن)"].apply(lambda x: format_material_val(x, 2))
-            excel_df["الرمل (م³)"] = excel_df["الرمل (م³)"].apply(lambda x: format_material_val(x, 1))
-            excel_df["الحصى (م³)"] = excel_df["الحصى (م³)"].apply(lambda x: format_material_val(x, 1))
             with pd.ExcelWriter(output, engine='openpyxl') as writer:
-                excel_df.to_excel(writer, index=False, sheet_name='جدول الذرعة والكميات')
+                df_display.to_excel(writer, index=False, sheet_name='BOQ_جدول_الكميات')
                 summary_df = pd.DataFrame({
-                    "البيان": ["اسم الشركة", "اسم المشروع", "الكلفة الإجمالية (دينار)", "إجمالي المساحة (م²)", "إجمالي الخرسانة (م³)", "إجمالي السمنت (طن)", "إجمالي الرمل (م³)", "إجمالي الحصى (م³)"],
-                    "القيمة": [company_ar_name, project_name, grand_total, sum_area, sum_vol, sum_cement, sum_sand, sum_gravel]
+                    "البيان": ["اسم المشروع", "الشركة المنفذة", "إجمالي كلفة المواد (د.ع)", "إجمالي أجور العمال (د.ع)", "الكلفة الكلية للمشروع (د.ع)"],
+                    "القيمة": [project_name, company_ar_name, tot_mat, tot_lab, total_iqd]
                 })
-                summary_df.to_excel(writer, index=False, sheet_name='ملخص المواد والكلف')
+                summary_df.to_excel(writer, index=False, sheet_name='الملخص_المالي')
             return output.getvalue()
 
-        b_en = get_en_building_label(building_choice)
-        w_en = get_en_item_label(item_choice)
+        b_en_lbl = get_en_building_label(building_choice)
+        w_en_lbl = get_en_item_label(item_choice)
 
-        b1, b2, b3, b4 = st.columns(4)
-        with b1:
+        pdf_bytes = generate_official_pdf(
+            boq_df, grand_total, company_en_name, uploaded_logo,
+            b_en_lbl, w_en_lbl, length_m, width_m, thickness_cm, st.session_state.boq_list
+        )
+        excel_bytes = generate_excel_boq(display_df, grand_total, tot_mat_all, tot_lab_all)
+        dxf_bytes = generate_autocad_dxf(st.session_state.boq_list, b_en_lbl)
+        dyn_bytes = generate_revit_dynamo_file(st.session_state.boq_list, project_name, b_en_lbl)
+
+        st.markdown("### 📥 تصدير الملفات الهندسية والمخططات المعتمدة:")
+        ex1, ex2, ex3, ex4 = st.columns(4)
+        with ex1:
             st.download_button(
-                label="📄 تحميل التقرير الرسمي PDF",
-                data=generate_official_pdf(boq_df, grand_total, company_en_name, uploaded_logo, b_en, w_en, length_m, width_m, thickness_cm, st.session_state.boq_list),
-                file_name="Official_BOQ_Report.pdf",
+                label="📄 تحميل التقرير الرسمي (PDF)",
+                data=pdf_bytes,
+                file_name=f"BOQ_Report_{datetime.now().strftime('%Y%m%d')}.pdf",
                 mime="application/pdf"
             )
-        with b2:
+        with ex2:
             st.download_button(
-                label="📊 تحميل جدول الكميات Excel",
-                data=generate_official_excel(boq_df),
-                file_name="Official_BOQ_Project.xlsx",
+                label="📊 تحميل جدول الكميات (Excel)",
+                data=excel_bytes,
+                file_name=f"BOQ_Iraq_{datetime.now().strftime('%Y%m%d')}.xlsx",
                 mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
             )
-        with b3:
+        with ex3:
             st.download_button(
-                label="📐 تصدير رسم AutoCAD (.dxf)",
-                data=generate_autocad_dxf(st.session_state.boq_list, b_en),
-                file_name="Engineering_Drawing_AutoCAD.dxf",
+                label="📐 تصدير مخطط أوتوكاد (DXF)",
+                data=dxf_bytes,
+                file_name=f"Structural_Plan_{datetime.now().strftime('%Y%m%d')}.dxf",
                 mime="application/dxf"
             )
-        with b4:
-            if st.button("🗑️ مسح الجدول"):
-                st.session_state.boq_list = []
-                st.rerun()
+        with ex4:
+            st.download_button(
+                label="🏗️ تصدير للريفيت (Revit .dyn)",
+                data=dyn_bytes,
+                file_name=f"Revit_BIM_Generator_{datetime.now().strftime('%Y%m%d')}.dyn",
+                mime="application/json"
+            )
+
+        with st.expander("🖼️ معاينة المخطط الهندسي المرفق في التقرير قبل التحميل", expanded=False):
+            preview_fig = generate_pdf_engineering_diagram(b_en_lbl, w_en_lbl, length_m, width_m, thickness_cm, st.session_state.boq_list)
+            st.pyplot(preview_fig)
+            plt.close(preview_fig)
+
+        if st.button("🗑️ مسح جدول الكميات والبدء بمشروع جديد"):
+            st.session_state.boq_list = []
+            st.rerun()
     else:
-        st.warning("💡 جدول الكميات فارغ حالياً. أدخل أبعاد الفقرة أعلاه واضغط على زر (➕ إضافة هذا الجزء إلى جدول الكميات).")
+        st.info("ℹ️ جدول الكميات فارغ حالياً. أدخل أبعاد الفقرة في الأعلى ثم اضغط على زر (➕ إضافة هذه الفقرة إلى جدول الكميات الكلي للمشروع).")
 
 with tab2:
-    st.markdown("### 📊 مسار تطور أسعار المواد الإنشائية (البيانات الرسمية 2026 + تنبؤ الذكاء الاصطناعي 2027-2030)")
+    st.subheader("👷 جدول أجور العاملين والكادر الهندسي الرسمي (18 محافظة عراقية - 2026)")
+    wages_display = gov_df.rename(columns={
+        "Governorate": "المحافظة",
+        "Skilled": "العامل الماهر / الخلفة (د.ع/يوم)",
+        "Semi_Skilled": "العامل شبه الماهر (د.ع/يوم)",
+        "Unskilled": "العامل غير الماهر (د.ع/يوم)",
+        "Engineer": "المهندس المشرف (د.ع/يوم)",
+        "Admin": "الإداري / المحاسب (د.ع/يوم)",
+        "Guard": "الحارس (د.ع/يوم)",
+        "Transport_Factor": "معامل النقل"
+    })
+    st.dataframe(wages_display, use_container_width=True)
+
+with tab3:
+    st.subheader("📈 منحنى التنبؤ الزمني بأسعار المواد الإنشائية (محرك Ridge Seasonal: 2026 - 2030)")
     chart_df = timeline_df.copy()
     chart_df['التاريخ'] = chart_df['Year'].astype(str) + "-" + chart_df['Month'].astype(str).str.zfill(2)
-    chart_df = chart_df.set_index('التاريخ')
-    st.line_chart(chart_df[['Cement_Ton', 'Sand_m3', 'Gravel_m3', 'Wood_m2']])
+    
+    annual_summary = chart_df[chart_df['Month'] == 10][['Year', 'Cement_Res_Ton', 'Cement_Ord_Ton', 'Rebar_Ton', 'Brick_Ord_1000', 'Sand_m3', 'Gravel_m3']].rename(columns={
+        'Year': 'السنة',
+        'Cement_Res_Ton': 'السمنت المقاوم (د.ع/طن)',
+        'Cement_Ord_Ton': 'السمنت العادي (د.ع/طن)',
+        'Rebar_Ton': 'حديد التسليح (د.ع/طن)',
+        'Brick_Ord_1000': 'الطابوق العادي (د.ع/ألف)',
+        'Sand_m3': 'الرمل الأسود (د.ع/م³)',
+        'Gravel_m3': 'الحصى العادي (د.ع/م³)'
+    })
+    st.dataframe(annual_summary, use_container_width=True)
+
+    fig_fc, ax_fc = plt.subplots(figsize=(10, 4.2), dpi=140)
+    x_idx = np.arange(len(chart_df))
+    ax_fc.plot(x_idx, chart_df['Cement_Res_Ton'] / 1000.0, linewidth=2.0, label="Resistant Cement (k IQD/Ton)")
+    ax_fc.plot(x_idx, chart_df['Brick_Ord_1000'] / 1000.0, linewidth=2.0, label="Ordinary Brick (k IQD/1000)")
+    ax_fc.plot(x_idx, chart_df['Sand_m3'] / 1000.0, linewidth=2.0, label="Sand (k IQD/m3)")
+    ax_fc.plot(x_idx, chart_df['Gravel_m3'] / 1000.0, linewidth=2.0, label="Gravel (k IQD/m3)")
+    
+    tick_positions = [i for i, m in enumerate(chart_df['Month']) if m == 1]
+    tick_labels = [str(y) for y in chart_df.loc[tick_positions, 'Year']]
+    ax_fc.set_xticks(tick_positions)
+    ax_fc.set_xticklabels(tick_labels)
+    ax_fc.set_title("Monthly Price Trajectory & Seasonality (2026 - 2030)", fontweight='bold')
+    ax_fc.set_xlabel("Year")
+    ax_fc.set_ylabel("Price (Thousand IQD)")
+    ax_fc.grid(True, linestyle='--', alpha=0.5)
+    ax_fc.legend()
+    plt.tight_layout()
+    st.pyplot(fig_fc)
+    plt.close(fig_fc)
