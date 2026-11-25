@@ -9,3 +9,5 @@ openpyxl
 matplotlib
 ezdxf
 pillow
+arabic-reshaper
+python-bidi
