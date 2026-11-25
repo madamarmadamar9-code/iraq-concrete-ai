@@ -98,20 +98,20 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # ==========================================
-# محرك تشكيل النصوص العربية للرسم الهندسي (Matplotlib) دون تقطيع
+# محرك تشكيل النصوص العربية الواضحة للرسم الهندسي
 # ==========================================
 def ar_text(text):
-    """ربط الحروف العربية وعكس اتجاهها لتظهر متصلة وصحيحة 100% في الرسومات الهندسية"""
+    """ربط الحروف العربية وعكس اتجاهها لتظهر بأناقة ووضوح في الرسومات الهندسية"""
     if not text:
         return ""
     try:
         import arabic_reshaper
         from bidi.algorithm import get_display
-        return get_display(arabic_reshaper.reshape(str(text)))
+        reshaped = arabic_reshaper.reshape(str(text))
+        return get_display(reshaped)
     except Exception:
         pass
 
-    # محرك تشكيل عربي مدمج يعمل بدون مكتبات خارجية
     forms = {
         'ا': ('\uFE8D', '\uFE8E', '\uFE8D', '\uFE8E'),
         'أ': ('\uFE83', '\uFE84', '\uFE83', '\uFE84'),
@@ -388,204 +388,195 @@ def get_en_item_label(ar_item):
     return mapping.get(ar_item, "Engineering Work Item")
 
 def generate_pdf_engineering_diagram(b_cat_en, w_cat_en, L, W, T_cm, boq_items, b_cat_ar="منشأ هندسي", w_cat_ar="فقرة إنشائية"):
-    plt.rcParams['font.sans-serif'] = ['DejaVu Sans', 'Arial', 'Tahoma']
+    plt.rcParams['font.sans-serif'] = ['Tahoma', 'DejaVu Sans', 'Arial']
     plt.rcParams['axes.unicode_minus'] = False
 
-    fig, ax = plt.subplots(figsize=(11.5, 6.2), dpi=180)
-    ax.set_facecolor('#F8FAFC')
+    fig, ax = plt.subplots(figsize=(12.5, 6.6), dpi=200)
+    ax.set_facecolor('#FFFFFF')
 
-    # إطار لوحة هندسية احترافية (Engineering Title Block Border)
+    box_style_right = dict(boxstyle='round,pad=0.35', facecolor='#F8FAFC', edgecolor='#CBD5E1', lw=1.0)
+    box_style_left  = dict(boxstyle='round,pad=0.35', facecolor='#FEFCE8', edgecolor='#FDE047', lw=1.0)
+
     if "Road" in b_cat_en or "Asphalt" in w_cat_en:
-        ax.set_xlim(-3.2, 13.2)
-        ax.set_ylim(-1.4, 5.8)
+        ax.set_xlim(-4.8, 14.8)
+        ax.set_ylim(-1.6, 5.6)
 
-        # إطار اللوحة
-        ax.add_patch(patches.Rectangle((-3.0, -1.2), 16.0, 6.8, fill=False, edgecolor='#0F172A', linewidth=2.0))
+        ax.add_patch(patches.Rectangle((-4.6, -1.4), 19.2, 6.8, fill=False, edgecolor='#0F172A', linewidth=2.0))
 
-        # 1. طبقة التربة الطبيعية (Sub-grade Soil)
-        ax.add_patch(patches.Rectangle((0.5, 0.1), 9.0, 0.65, linewidth=1.3, edgecolor='#78350F', facecolor='#FDE68A', hatch='///'))
+        # 1. طبقة التربة الطبيعية
+        ax.add_patch(patches.Rectangle((1.2, 0.1), 7.6, 0.65, linewidth=1.3, edgecolor='#78350F', facecolor='#FDE68A', hatch='///'))
         ax.annotate(
-            ar_text("طبقة التربة الطبيعية المحدولة (Sub-grade)"),
-            xy=(0.5, 0.42), xytext=(-2.8, 0.42),
-            arrowprops=dict(arrowstyle='->', color='#78350F', lw=1.5),
-            fontsize=8.5, fontweight='bold', color='#78350F', va='center'
+            ar_text("طبقة التربة الطبيعية المحدولة"),
+            xy=(1.2, 0.42), xytext=(-4.3, 0.42),
+            arrowprops=dict(arrowstyle='->', color='#78350F', lw=1.6),
+            fontsize=9.5, fontweight='bold', color='#78350F', va='center', ha='left', bbox=box_style_left
         )
 
-        # 2. طبقة السبيس الحصوي (Sub-base Class B)
-        ax.add_patch(patches.Rectangle((0.9, 0.75), 8.2, 0.70, linewidth=1.3, edgecolor='#475569', facecolor='#CBD5E1', hatch='..'))
+        # 2. طبقة السبيس الحصوي
+        ax.add_patch(patches.Rectangle((1.5, 0.75), 7.0, 0.70, linewidth=1.3, edgecolor='#475569', facecolor='#CBD5E1', hatch='..'))
         ax.annotate(
-            ar_text("طبقة الأساس الحصوي / سبيس (Class B)"),
-            xy=(9.1, 1.10), xytext=(9.6, 1.10),
-            arrowprops=dict(arrowstyle='->', color='#1E293B', lw=1.5),
-            fontsize=8.5, fontweight='bold', color='#1E293B', va='center'
+            ar_text("طبقة الأساس الحصوي السبيس"),
+            xy=(8.5, 1.10), xytext=(9.3, 1.10),
+            arrowprops=dict(arrowstyle='->', color='#1E293B', lw=1.6),
+            fontsize=9.5, fontweight='bold', color='#1E293B', va='center', ha='left', bbox=box_style_right
         )
 
-        # 3. الطبقة الرابطة والسطحية الأسفلتية بميل تصريف واقعي (Camber 2%)
-        asphalt_poly = [[1.3, 1.45], [8.7, 1.45], [8.5, 2.35], [5.0, 2.52], [1.5, 2.35]]
+        # 3. الطبقة الأسفلتية بميل تصريف 2%
+        asphalt_poly = [[1.8, 1.45], [8.2, 1.45], [8.0, 2.35], [5.0, 2.52], [2.0, 2.35]]
         ax.add_patch(patches.Polygon(asphalt_poly, closed=True, linewidth=2.0, edgecolor='#0F172A', facecolor='#1E293B'))
 
-        # الأكتاف الجانبية (Road Shoulders)
-        ax.add_patch(patches.Polygon([[0.9, 1.45], [1.3, 1.45], [1.5, 2.35], [1.1, 2.35]], closed=True, edgecolor='#64748B', facecolor='#94A3B8'))
-        ax.add_patch(patches.Polygon([[8.7, 1.45], [9.1, 1.45], [8.9, 2.35], [8.5, 2.35]], closed=True, edgecolor='#64748B', facecolor='#94A3B8'))
+        # الأكتاف الجانبية
+        ax.add_patch(patches.Polygon([[1.5, 1.45], [1.8, 1.45], [2.0, 2.35], [1.7, 2.35]], closed=True, edgecolor='#64748B', facecolor='#94A3B8'))
+        ax.add_patch(patches.Polygon([[8.2, 1.45], [8.5, 1.45], [8.3, 2.35], [8.0, 2.35]], closed=True, edgecolor='#64748B', facecolor='#94A3B8'))
 
-        # علامات التخطيط المروري (Lane Markings)
-        ax.plot([2.2, 7.8], [2.42, 2.42], linestyle='--', color='#FACC15', linewidth=2.2)
-        ax.text(5.0, 1.92, ar_text(f"طبقة التبليط الأسفلتي | السمك = {T_cm:.0f} سم"), ha='center', va='center', fontsize=9, fontweight='bold', color='white')
+        # خط التخطيط المروري
+        ax.plot([2.5, 7.5], [2.42, 2.42], linestyle='--', color='#FACC15', linewidth=2.2)
+        ax.text(5.0, 1.90, ar_text(f"طبقة الأسفلت | السمك {T_cm:.0f} سم"), ha='center', va='center', fontsize=10, fontweight='bold', color='white')
 
-        # تعليمات جانبية للأسفلت والأكتاف
+        # تعليمات جانبية واضحة ومفصولة تماماً
         ax.annotate(
-            ar_text("كتف الطريق الجانبي (Shoulder)"),
-            xy=(1.1, 1.95), xytext=(-2.8, 2.05),
-            arrowprops=dict(arrowstyle='->', color='#334155', lw=1.5),
-            fontsize=8.5, fontweight='bold', color='#334155', va='center'
+            ar_text("كتف الطريق الجانبي"),
+            xy=(1.65, 1.95), xytext=(-4.3, 2.05),
+            arrowprops=dict(arrowstyle='->', color='#334155', lw=1.6),
+            fontsize=9.5, fontweight='bold', color='#334155', va='center', ha='left', bbox=box_style_left
         )
         ax.annotate(
-            ar_text("ميل تصريف مياه الأمطار (Camber 2%)"),
-            xy=(6.8, 2.46), xytext=(9.6, 2.45),
-            arrowprops=dict(arrowstyle='->', color='#0284C7', lw=1.5),
-            fontsize=8.5, fontweight='bold', color='#0284C7', va='center'
+            ar_text("ميل تصريف الأمطار 2%"),
+            xy=(6.6, 2.46), xytext=(9.3, 2.45),
+            arrowprops=dict(arrowstyle='->', color='#0284C7', lw=1.6),
+            fontsize=9.5, fontweight='bold', color='#0284C7', va='center', ha='left', bbox=box_style_right
         )
 
-        # خطوط الأبعاد الهندسية الواقعية (Dimension Lines)
-        ax.plot([1.5, 1.5], [2.35, 3.4], linestyle=':', color='#DC2626', lw=1.2)
-        ax.plot([8.5, 8.5], [2.35, 3.4], linestyle=':', color='#DC2626', lw=1.2)
-        ax.annotate('', xy=(1.5, 3.25), xytext=(8.5, 3.25), arrowprops=dict(arrowstyle='<->', color='#DC2626', lw=1.8))
-        ax.text(5.0, 3.55, ar_text(f"عرض الطريق (W) = {W:.2f} م   |   طول المقطع (L) = {L:.2f} م"), ha='center', va='center', fontsize=9.5, fontweight='bold', color='#DC2626')
+        # خطوط الأبعاد الهندسية
+        ax.plot([2.0, 2.0], [2.35, 3.45], linestyle=':', color='#DC2626', lw=1.3)
+        ax.plot([8.0, 8.0], [2.35, 3.45], linestyle=':', color='#DC2626', lw=1.3)
+        ax.annotate('', xy=(2.0, 3.30), xytext=(8.0, 3.30), arrowprops=dict(arrowstyle='<->', color='#DC2626', lw=2.0))
+        ax.text(5.0, 3.68, ar_text(f"العرض = {W:.1f} م   |   الطول = {L:.1f} م"), ha='center', va='center', fontsize=10.5, fontweight='bold', color='#DC2626')
 
-        # صندوق الملاحظات الهندسية أسفل المخطط
-        ax.add_patch(patches.Rectangle((-2.7, -1.0), 15.4, 0.85, facecolor='#EFF6FF', edgecolor='#1D4ED8', linewidth=1.2))
-        ax.text(5.0, -0.58, ar_text(f"ملاحظة هندسية: المقطع العرضي القياسي لفقرة ({w_cat_ar.split('(')[0].strip()}) مطابق لمواصفات الطرق والجسور العراقية"), ha='center', va='center', fontsize=8.5, fontweight='bold', color='#1E3A8A')
+        # صندوق الملاحظات
+        ax.add_patch(patches.Rectangle((-4.2, -1.15), 18.4, 0.85, facecolor='#EFF6FF', edgecolor='#1D4ED8', linewidth=1.3))
+        ax.text(5.0, -0.72, ar_text(f"المقطع العرضي القياسي لفقرة: {w_cat_ar.split('(')[0].strip()}"), ha='center', va='center', fontsize=10, fontweight='bold', color='#1E3A8A')
 
-        ax.set_title(ar_text(f"المخطط المقطعي الهندسي التفصيلي - {b_cat_ar.split('(')[0].strip()}"), fontsize=12, fontweight='bold', color='#0F172A', pad=10)
+        ax.set_title(ar_text(f"المخطط المقطعي الهندسي التفصيلي - {b_cat_ar.split('(')[0].strip()}"), fontsize=13, fontweight='bold', color='#0F172A', pad=12)
 
     else:
-        ax.set_xlim(-3.8, 13.8)
+        ax.set_xlim(-5.2, 15.2)
         total_layers = max(1, len(boq_items))
-        max_y = max(7.2, 2.4 + total_layers * 0.95 + 2.4)
-        ax.set_ylim(-1.3, max_y)
+        max_y = max(7.4, 2.5 + total_layers * 1.0 + 2.4)
+        ax.set_ylim(-1.4, max_y)
 
-        # إطار اللوحة الهندسية
-        ax.add_patch(patches.Rectangle((-3.6, -1.1), 17.2, max_y + 0.9, fill=False, edgecolor='#0F172A', linewidth=2.0))
+        ax.add_patch(patches.Rectangle((-5.0, -1.2), 20.0, max_y + 1.0, fill=False, edgecolor='#0F172A', linewidth=2.0))
 
-        # 1. طبقة التربة الطبيعية أسفل الحفريات
-        ax.add_patch(patches.Rectangle((1.2, 0.0), 7.6, 0.55, linewidth=1.2, edgecolor='#78350F', facecolor='#FEF3C7', hatch='///'))
+        # 1. طبقة التربة الطبيعية
+        ax.add_patch(patches.Rectangle((1.6, 0.0), 6.8, 0.55, linewidth=1.2, edgecolor='#78350F', facecolor='#FEF3C7', hatch='///'))
         ax.annotate(
-            ar_text("أرض طبيعية محدولة (Natural Soil)"),
-            xy=(1.2, 0.27), xytext=(-3.4, 0.27),
-            arrowprops=dict(arrowstyle='->', color='#78350F', lw=1.5),
-            fontsize=8.5, fontweight='bold', color='#78350F', va='center'
+            ar_text("أرض طبيعية محدولة"),
+            xy=(1.6, 0.27), xytext=(-4.7, 0.27),
+            arrowprops=dict(arrowstyle='->', color='#78350F', lw=1.6),
+            fontsize=9.5, fontweight='bold', color='#78350F', va='center', ha='left', bbox=box_style_left
         )
 
-        # 2. طبقة السبيس وخرسانة النظافة (Blinding Concrete)
-        ax.add_patch(patches.Rectangle((1.5, 0.55), 7.0, 0.45, linewidth=1.3, edgecolor='#475569', facecolor='#E2E8F0', hatch='..'))
+        # 2. طبقة السبيس وخرسانة النظافة
+        ax.add_patch(patches.Rectangle((1.9, 0.55), 6.2, 0.45, linewidth=1.3, edgecolor='#475569', facecolor='#E2E8F0', hatch='..'))
         ax.annotate(
-            ar_text("طبقة سبيس + صبة نظافة (1:3:6)"),
-            xy=(8.5, 0.77), xytext=(9.3, 0.77),
-            arrowprops=dict(arrowstyle='->', color='#334155', lw=1.5),
-            fontsize=8.5, fontweight='bold', color='#334155', va='center'
+            ar_text("طبقة سبيس وصبة نظافة"),
+            xy=(8.1, 0.77), xytext=(9.2, 0.77),
+            arrowprops=dict(arrowstyle='->', color='#334155', lw=1.6),
+            fontsize=9.5, fontweight='bold', color='#334155', va='center', ha='left', bbox=box_style_right
         )
 
-        # 3. رسم طبقات وعناصر الفقرات الإنشائية المضافة بواقعية هندسية
+        # 3. الطبقات الإنشائية
         palette = ['#CBD5E1', '#93C5FD', '#A7F3D0', '#FDE68A', '#DDD6FE', '#BAE6FD']
         current_y = 1.00
         items_to_draw = boq_items if len(boq_items) > 0 else [{
-            'ت': 1,
-            'الجزء الإنشائي': 'الجزء القياسي',
-            'الفقرة': w_cat_ar,
-            'الأبعاد': f"{L}m x {W}m x {T_cm}cm",
-            'الكمية': round(L * W * (T_cm / 100.0), 2),
-            'الوحدة': 'م³',
-            'نوع الفقرة_EN': w_cat_en
+            'ت': 1, 'الفقرة': w_cat_ar, 'الأبعاد': f"{L}x{W}x{T_cm}",
+            'الكمية': round(L * W * (T_cm / 100.0), 2), 'الوحدة': 'م³', 'نوع الفقرة_EN': w_cat_en
         }]
 
         for idx, item in enumerate(items_to_draw):
             c = palette[idx % len(palette)]
-            w_rect = max(4.2, 6.8 - idx * 0.28)
+            w_rect = max(4.2, 6.2 - idx * 0.25)
             x_start = 5.0 - (w_rect / 2.0)
-            h_rect = 0.82
+            h_rect = 0.85
 
-            # جسم العنصر الخرساني / الإنشائي
-            rect = patches.Rectangle((x_start, current_y), w_rect, h_rect, linewidth=1.6, edgecolor='#0F172A', facecolor=c, hatch='..')
-            ax.add_patch(rect)
+            ax.add_patch(patches.Rectangle((x_start, current_y), w_rect, h_rect, linewidth=1.6, edgecolor='#0F172A', facecolor=c, hatch='..'))
 
-            # إظهار قضبان حديد التسليح الواقعية داخل المقطع (Rebar & Stirrups)
+            # قضبان التسليح داخل المقطع
             ax.plot([x_start + 0.18, x_start + w_rect - 0.18], [current_y + 0.14, current_y + 0.14], color='#DC2626', linewidth=2.0)
             ax.plot([x_start + 0.18, x_start + w_rect - 0.18], [current_y + h_rect - 0.14, current_y + h_rect - 0.14], color='#DC2626', linewidth=1.6)
-            for rx in np.linspace(x_start + 0.25, x_start + w_rect - 0.25, 9):
+            for rx in np.linspace(x_start + 0.25, x_start + w_rect - 0.25, 8):
                 ax.add_patch(patches.Circle((rx, current_y + 0.14), radius=0.045, color='#991B1B'))
                 ax.add_patch(patches.Circle((rx, current_y + h_rect - 0.14), radius=0.04, color='#991B1B'))
 
-            dim_txt = str(item['الأبعاد'])
             qty_txt = item['الكمية']
             unit_ar = item.get('الوحدة', 'م³')
-            center_lbl = ar_text(f"فقرة ({item['ت']}) | الكمية: {qty_txt} {unit_ar} | ({dim_txt})")
-            ax.text(5.0, current_y + h_rect / 2.0, center_lbl, ha='center', va='center', fontsize=8.2, fontweight='bold', color='#0F172A',
-                    bbox=dict(boxstyle='round,pad=0.18', facecolor='white', edgecolor='none', alpha=0.82))
+            center_lbl = ar_text(f"فقرة {item['ت']}  |  الكمية: {qty_txt} {unit_ar}")
+            ax.text(5.0, current_y + h_rect / 2.0, center_lbl, ha='center', va='center', fontsize=9.2, fontweight='bold', color='#0F172A',
+                    bbox=dict(boxstyle='round,pad=0.22', facecolor='white', edgecolor='#94A3B8', lw=0.8, alpha=0.92))
 
-            # تعليمة هندسية عربية على اليمين أو اليسار بالتناوب
             short_ar_item = str(item.get('الفقرة', w_cat_ar)).split('(')[0].split('[')[0].strip()
             callout_txt = ar_text(f"فقرة {item['ت']}: {short_ar_item}")
             if idx % 2 == 0:
                 ax.annotate(
                     callout_txt,
                     xy=(x_start + w_rect, current_y + h_rect / 2.0),
-                    xytext=(9.3, current_y + h_rect / 2.0),
-                    arrowprops=dict(arrowstyle='->', color='#1E3A8A', lw=1.5),
-                    fontsize=8.3, fontweight='bold', color='#1E3A8A', va='center'
+                    xytext=(9.2, current_y + h_rect / 2.0),
+                    arrowprops=dict(arrowstyle='->', color='#1E3A8A', lw=1.6),
+                    fontsize=9.0, fontweight='bold', color='#1E3A8A', va='center', ha='left', bbox=box_style_right
                 )
             else:
                 ax.annotate(
                     callout_txt,
                     xy=(x_start, current_y + h_rect / 2.0),
-                    xytext=(-3.4, current_y + h_rect / 2.0),
-                    arrowprops=dict(arrowstyle='->', color='#0F172A', lw=1.5),
-                    fontsize=8.3, fontweight='bold', color='#0F172A', va='center'
+                    xytext=(-4.7, current_y + h_rect / 2.0),
+                    arrowprops=dict(arrowstyle='->', color='#0F172A', lw=1.6),
+                    fontsize=9.0, fontweight='bold', color='#0F172A', va='center', ha='left', bbox=box_style_left
                 )
-            current_y += h_rect + 0.08
+            current_y += h_rect + 0.10
 
-        # 4. الأعمدة الحاملة مع حديد التسليح الطولي
+        # 4. الأعمدة الحاملة
         col_h = 1.15
-        for cx in [2.3, 7.3]:
+        for cx in [2.5, 7.1]:
             ax.add_patch(patches.Rectangle((cx, current_y), 0.42, col_h, linewidth=1.5, edgecolor='#0F172A', facecolor='#64748B'))
             ax.plot([cx + 0.08, cx + 0.08], [current_y, current_y + col_h], color='#EF4444', lw=1.5)
             ax.plot([cx + 0.34, cx + 0.34], [current_y, current_y + col_h], color='#EF4444', lw=1.5)
 
         ax.annotate(
-            ar_text("أعمدة خرسانية مسلحة (RC Columns)"),
-            xy=(7.72, current_y + col_h * 0.5), xytext=(9.3, current_y + col_h * 0.5),
-            arrowprops=dict(arrowstyle='->', color='#475569', lw=1.5),
-            fontsize=8.3, fontweight='bold', color='#334155', va='center'
+            ar_text("أعمدة خرسانية مسلحة"),
+            xy=(7.52, current_y + col_h * 0.5), xytext=(9.2, current_y + col_h * 0.5),
+            arrowprops=dict(arrowstyle='->', color='#475569', lw=1.6),
+            fontsize=9.2, fontweight='bold', color='#334155', va='center', ha='left', bbox=box_style_right
         )
         ax.annotate(
-            ar_text("تسليح الحديد الرئيسي والكانات"),
-            xy=(2.3, current_y + col_h * 0.35), xytext=(-3.4, current_y + col_h * 0.35),
-            arrowprops=dict(arrowstyle='->', color='#DC2626', lw=1.5),
-            fontsize=8.3, fontweight='bold', color='#DC2626', va='center'
+            ar_text("حديد التسليح الرئيسي والكانات"),
+            xy=(2.5, current_y + col_h * 0.35), xytext=(-4.7, current_y + col_h * 0.35),
+            arrowprops=dict(arrowstyle='->', color='#DC2626', lw=1.6),
+            fontsize=9.2, fontweight='bold', color='#DC2626', va='center', ha='left', bbox=box_style_left
         )
 
-        # 5. السقف العلوي للمنشأ
+        # 5. السقف العلوي
         b_ar_short = b_cat_ar.split('(')[0].strip()
         if "House" in b_cat_en:
-            roof_pts = [[1.8, current_y + col_h], [5.0, current_y + col_h + 0.85], [8.2, current_y + col_h]]
-            ax.add_patch(patches.Polygon(roof_pts, closed=True, linewidth=1.8, edgecolor='#0F172A', facecolor='#38BDF8', alpha=0.88))
-            ax.text(5.0, current_y + col_h + 0.32, ar_text(b_ar_short), ha='center', va='center', fontsize=8.8, fontweight='bold', color='#0F172A')
+            roof_pts = [[2.0, current_y + col_h], [5.0, current_y + col_h + 0.85], [8.0, current_y + col_h]]
+            ax.add_patch(patches.Polygon(roof_pts, closed=True, linewidth=1.8, edgecolor='#0F172A', facecolor='#38BDF8', alpha=0.9))
+            ax.text(5.0, current_y + col_h + 0.32, ar_text(b_ar_short), ha='center', va='center', fontsize=9.8, fontweight='bold', color='#0F172A')
             top_dim_y = current_y + col_h + 1.15
         else:
-            ax.add_patch(patches.Rectangle((1.9, current_y + col_h), 6.2, 0.45, linewidth=1.8, edgecolor='#0F172A', facecolor='#38BDF8', alpha=0.88))
-            ax.text(5.0, current_y + col_h + 0.22, ar_text(f"الهيكل العلوي: {b_ar_short}"), ha='center', va='center', fontsize=8.8, fontweight='bold', color='#0F172A')
-            top_dim_y = current_y + col_h + 0.78
+            ax.add_patch(patches.Rectangle((2.1, current_y + col_h), 5.8, 0.48, linewidth=1.8, edgecolor='#0F172A', facecolor='#38BDF8', alpha=0.9))
+            ax.text(5.0, current_y + col_h + 0.24, ar_text(f"الهيكل العلوي: {b_ar_short}"), ha='center', va='center', fontsize=9.8, fontweight='bold', color='#0F172A')
+            top_dim_y = current_y + col_h + 0.82
 
-        # 6. خط الأبعاد الهندسي الأعلى (Dimension Line)
-        ax.annotate('', xy=(1.9, top_dim_y), xytext=(8.1, top_dim_y), arrowprops=dict(arrowstyle='<->', color='#DC2626', lw=1.8))
-        ax.text(5.0, top_dim_y + 0.28, ar_text(f"الطول (L) = {L:.2f} م  |  العرض (W) = {W:.2f} م  |  السمك (T) = {T_cm:.1f} سم"),
-                ha='center', va='center', fontsize=9, fontweight='bold', color='#DC2626')
+        # 6. خط الأبعاد الهندسي الأعلى
+        ax.annotate('', xy=(2.1, top_dim_y), xytext=(7.9, top_dim_y), arrowprops=dict(arrowstyle='<->', color='#DC2626', lw=2.0))
+        ax.text(5.0, top_dim_y + 0.32, ar_text(f"الطول = {L:.1f} م  |  العرض = {W:.1f} م  |  السمك = {T_cm:.1f} سم"),
+                ha='center', va='center', fontsize=10, fontweight='bold', color='#DC2626')
 
-        # 7. شريط ملاحظات هندسية أسفل اللوحة
-        ax.add_patch(patches.Rectangle((-3.3, -0.92), 16.6, 0.68, facecolor='#EFF6FF', edgecolor='#1D4ED8', linewidth=1.2))
-        ax.text(5.0, -0.58, ar_text("ملاحظة: الرسم المقطعي يوضح تسلسل الطبقات الإنشائية والتسليح وفق الدليل القياسي العراقي"),
-                ha='center', va='center', fontsize=8.5, fontweight='bold', color='#1E3A8A')
+        # 7. شريط الملاحظات السفلي
+        ax.add_patch(patches.Rectangle((-4.6, -1.0), 19.2, 0.72, facecolor='#EFF6FF', edgecolor='#1D4ED8', linewidth=1.3))
+        ax.text(5.0, -0.64, ar_text("الرسم المقطعي يوضح تسلسل الطبقات الإنشائية والتسليح وفق الدليل القياسي العراقي"),
+                ha='center', va='center', fontsize=9.5, fontweight='bold', color='#1E3A8A')
 
-        ax.set_title(ar_text(f"المخطط المقطعي الإنشائي التفصيلي - {b_ar_short}"), fontsize=12, fontweight='bold', color='#0F172A', pad=10)
+        ax.set_title(ar_text(f"المخطط المقطعي الإنشائي التفصيلي - {b_ar_short}"), fontsize=13, fontweight='bold', color='#0F172A', pad=12)
 
     ax.axis('off')
     plt.tight_layout()
@@ -1247,7 +1238,7 @@ with tab1:
             pdf.cell(0, 8, "ENGINEERING CROSS-SECTION & STRUCTURAL SCHEMATIC DIAGRAM", ln=True, align='C')
             pdf_fig = generate_pdf_engineering_diagram(b_cat_en, w_cat_en, L_val, W_val, T_val, boq_raw, b_cat_ar, w_cat_ar)
             with tempfile.NamedTemporaryFile(delete=False, suffix=".png") as tmp_img:
-                pdf_fig.savefig(tmp_img.name, format='png', bbox_inches='tight', dpi=180)
+                pdf_fig.savefig(tmp_img.name, format='png', bbox_inches='tight', dpi=200)
                 img_path = tmp_img.name
             plt.close(pdf_fig)
 
