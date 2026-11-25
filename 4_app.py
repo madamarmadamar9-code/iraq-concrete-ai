@@ -98,101 +98,6 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # ==========================================
-# محرك تشكيل النصوص العربية الواضحة للرسم الهندسي
-# ==========================================
-def ar_text(text):
-    """ربط الحروف العربية وعكس اتجاهها لتظهر بأناقة ووضوح في الرسومات الهندسية"""
-    if not text:
-        return ""
-    try:
-        import arabic_reshaper
-        from bidi.algorithm import get_display
-        reshaped = arabic_reshaper.reshape(str(text))
-        return get_display(reshaped)
-    except Exception:
-        pass
-
-    forms = {
-        'ا': ('\uFE8D', '\uFE8E', '\uFE8D', '\uFE8E'),
-        'أ': ('\uFE83', '\uFE84', '\uFE83', '\uFE84'),
-        'إ': ('\uFE87', '\uFE88', '\uFE87', '\uFE88'),
-        'آ': ('\uFE81', '\uFE82', '\uFE81', '\uFE82'),
-        'ب': ('\uFE8F', '\uFE90', '\uFE91', '\uFE92'),
-        'ت': ('\uFE95', '\uFE96', '\uFE97', '\uFE98'),
-        'ث': ('\uFE99', '\uFE9A', '\uFE9B', '\uFE9C'),
-        'ج': ('\uFE9D', '\uFE9E', '\uFE9F', '\uFEA0'),
-        'ح': ('\uFEA1', '\uFEA2', '\uFEA3', '\uFEA4'),
-        'خ': ('\uFEA5', '\uFEA6', '\uFEA7', '\uFEA8'),
-        'د': ('\uFEA9', '\uFEAA', '\uFEA9', '\uFEAA'),
-        'ذ': ('\uFEAB', '\uFEAC', '\uFEAB', '\uFEAC'),
-        'ر': ('\uFEAD', '\uFEAE', '\uFEAD', '\uFEAE'),
-        'ز': ('\uFEAF', '\uFEB0', '\uFEAF', '\uFEB0'),
-        'س': ('\uFEB1', '\uFEB2', '\uFEB3', '\uFEB4'),
-        'ش': ('\uFEB5', '\uFEB6', '\uFEB7', '\uFEB8'),
-        'ص': ('\uFEB9', '\uFEBA', '\uFEBB', '\uFEBC'),
-        'ض': ('\uFEBD', '\uFEBE', '\uFEBF', '\uFEC0'),
-        'ط': ('\uFEC1', '\uFEC2', '\uFEC3', '\uFEC4'),
-        'ظ': ('\uFEC5', '\uFEC6', '\uFEC7', '\uFEC8'),
-        'ع': ('\uFEC9', '\uFECA', '\uFECB', '\uFECC'),
-        'غ': ('\uFECD', '\uFECE', '\uFECF', '\uFED0'),
-        'ف': ('\uFED1', '\uFED2', '\uFED3', '\uFED4'),
-        'ق': ('\uFED5', '\uFED6', '\uFED7', '\uFED8'),
-        'ك': ('\uFED9', '\uFEDA', '\uFEDB', '\uFEDC'),
-        'ل': ('\uFEDD', '\uFEDE', '\uFEDF', '\uFEE0'),
-        'م': ('\uFEE1', '\uFEE2', '\uFEE3', '\uFEE4'),
-        'ن': ('\uFEE5', '\uFEE6', '\uFEE7', '\uFEE8'),
-        'ه': ('\uFEE9', '\uFEEA', '\uFEEB', '\uFEEC'),
-        'ة': ('\uFE93', '\uFE94', '\uFE93', '\uFE94'),
-        'و': ('\uFEED', '\uFEEE', '\uFEED', '\uFEEE'),
-        'ؤ': ('\uFE85', '\uFE86', '\uFE85', '\uFE86'),
-        'ي': ('\uFEF1', '\uFEF2', '\uFEF3', '\uFEF4'),
-        'ى': ('\uFEEF', '\uFEF0', '\uFEEF', '\uFEF0'),
-        'ئ': ('\uFE89', '\uFE8A', '\uFE8B', '\uFE8C'),
-        'ء': ('\uFE80', '\uFE80', '\uFE80', '\uFE80'),
-    }
-    non_join_after = set(['ا', 'أ', 'إ', 'آ', 'د', 'ذ', 'ر', 'ز', 'و', 'ؤ', 'ة', 'ى', 'ء'])
-    lam_alef = {'ا': ('\uFEFB', '\uFEFC'), 'أ': ('\uFEF7', '\uFEF8'), 'إ': ('\uFEF9', '\uFEFA'), 'آ': ('\uFEF5', '\uFEF6')}
-
-    s = str(text)
-    tokens = re.findall(r'[\u0600-\u06FF]+|[^\u0600-\u06FF]+', s)
-    res_tokens = []
-    for tok in tokens:
-        if re.match(r'[\u0600-\u06FF]+', tok):
-            out = []
-            i = 0
-            n = len(tok)
-            prev_joins = False
-            while i < n:
-                ch = tok[i]
-                if ch not in forms:
-                    out.append(ch)
-                    prev_joins = False
-                    i += 1
-                    continue
-                if ch == 'ل' and i + 1 < n and tok[i + 1] in lam_alef:
-                    la = lam_alef[tok[i + 1]][1 if prev_joins else 0]
-                    out.append(la)
-                    prev_joins = False
-                    i += 2
-                    continue
-                next_joins = (i + 1 < n) and (tok[i + 1] in forms) and (ch not in non_join_after)
-                if prev_joins and next_joins:
-                    glyph = forms[ch][3]
-                elif prev_joins:
-                    glyph = forms[ch][1]
-                elif next_joins:
-                    glyph = forms[ch][2]
-                else:
-                    glyph = forms[ch][0]
-                out.append(glyph)
-                prev_joins = (ch not in non_join_after)
-                i += 1
-            res_tokens.append("".join(out)[::-1])
-        else:
-            res_tokens.append(tok)
-    return "".join(res_tokens[::-1])
-
-# ==========================================
 # 1. نظام الحماية ومفتاح التفعيل (الرمز مخفي عن الشاشة)
 # ==========================================
 VALID_KEYS = ["2026"]
@@ -359,7 +264,7 @@ if 'boq_list' not in st.session_state:
     st.session_state.boq_list = []
 
 # ==========================================
-# 3. دوال الرسم الهندسي الواقعي (مع تعليمات عربية واضحة) + التصدير (PDF / Excel / AutoCAD DXF)
+# 3. دوال الرسم الهندسي الواقعي بالإنجليزية الواضحة + التصدير (PDF / Excel / AutoCAD DXF)
 # ==========================================
 def get_en_building_label(ar_choice):
     mapping = {
@@ -375,9 +280,9 @@ def get_en_building_label(ar_choice):
 
 def get_en_item_label(ar_item):
     mapping = {
-        "الأسس - صب خرسانة غير مسلحة (1-1) [1:3:6]": "Foundation Blinding Concrete (1-1)",
-        "الأسس المسلحة (Reinforced Foundations) [1:2:4]": "Reinforced Concrete Footings",
-        "الأعمدة والجسور والسقوف الخرسانية [1:1.5:3]": "RC Columns, Beams & Slabs",
+        "الأسس - صب خرسانة غير مسلحة (1-1) [1:3:6]": "Foundation Blinding Concrete (1:3:6)",
+        "الأسس المسلحة (Reinforced Foundations) [1:2:4]": "Reinforced Concrete Footings (1:2:4)",
+        "الأعمدة والجسور والسقوف الخرسانية [1:1.5:3]": "RC Columns, Beams & Slabs (1:1.5:3)",
         "أعمال البناء بالطابوق / البلوك (Masonry Walls)": "Brick / Block Masonry Wall",
         "أعمال حديد التسليح والشيلمان (Reinforcement Steel)": "Reinforcement Rebar Steel",
         "أعمال الطرق والتبليط الأسفلتي (Asphalt & Sub-base)": "Road Asphalt & Sub-base",
@@ -387,77 +292,78 @@ def get_en_item_label(ar_item):
     }
     return mapping.get(ar_item, "Engineering Work Item")
 
-def generate_pdf_engineering_diagram(b_cat_en, w_cat_en, L, W, T_cm, boq_items, b_cat_ar="منشأ هندسي", w_cat_ar="فقرة إنشائية"):
-    plt.rcParams['font.sans-serif'] = ['Tahoma', 'DejaVu Sans', 'Arial']
+def generate_pdf_engineering_diagram(b_cat_en, w_cat_en, L, W, T_cm, boq_items):
+    plt.rcParams['font.sans-serif'] = ['DejaVu Sans', 'Arial']
     plt.rcParams['axes.unicode_minus'] = False
 
-    fig, ax = plt.subplots(figsize=(12.5, 6.6), dpi=200)
+    fig, ax = plt.subplots(figsize=(12.2, 6.4), dpi=200)
     ax.set_facecolor('#FFFFFF')
 
-    box_style_right = dict(boxstyle='round,pad=0.35', facecolor='#F8FAFC', edgecolor='#CBD5E1', lw=1.0)
-    box_style_left  = dict(boxstyle='round,pad=0.35', facecolor='#FEFCE8', edgecolor='#FDE047', lw=1.0)
+    box_right = dict(boxstyle='round,pad=0.35', facecolor='#F8FAFC', edgecolor='#CBD5E1', lw=1.0)
+    box_left  = dict(boxstyle='round,pad=0.35', facecolor='#FEFCE8', edgecolor='#FDE047', lw=1.0)
 
     if "Road" in b_cat_en or "Asphalt" in w_cat_en:
         ax.set_xlim(-4.8, 14.8)
         ax.set_ylim(-1.6, 5.6)
 
+        # إطار اللوحة الهندسية
         ax.add_patch(patches.Rectangle((-4.6, -1.4), 19.2, 6.8, fill=False, edgecolor='#0F172A', linewidth=2.0))
 
-        # 1. طبقة التربة الطبيعية
+        # 1. طبقة التربة الطبيعية (Sub-grade Soil)
         ax.add_patch(patches.Rectangle((1.2, 0.1), 7.6, 0.65, linewidth=1.3, edgecolor='#78350F', facecolor='#FDE68A', hatch='///'))
         ax.annotate(
-            ar_text("طبقة التربة الطبيعية المحدولة"),
-            xy=(1.2, 0.42), xytext=(-4.3, 0.42),
+            "Compacted Natural Sub-grade Soil",
+            xy=(1.2, 0.42), xytext=(-4.4, 0.42),
             arrowprops=dict(arrowstyle='->', color='#78350F', lw=1.6),
-            fontsize=9.5, fontweight='bold', color='#78350F', va='center', ha='left', bbox=box_style_left
+            fontsize=8.8, fontweight='bold', color='#78350F', va='center', ha='left', bbox=box_left
         )
 
-        # 2. طبقة السبيس الحصوي
+        # 2. طبقة السبيس الحصوي (Sub-base Class B)
         ax.add_patch(patches.Rectangle((1.5, 0.75), 7.0, 0.70, linewidth=1.3, edgecolor='#475569', facecolor='#CBD5E1', hatch='..'))
         ax.annotate(
-            ar_text("طبقة الأساس الحصوي السبيس"),
-            xy=(8.5, 1.10), xytext=(9.3, 1.10),
+            "Granular Sub-base Layer (Class B)",
+            xy=(8.5, 1.10), xytext=(9.2, 1.10),
             arrowprops=dict(arrowstyle='->', color='#1E293B', lw=1.6),
-            fontsize=9.5, fontweight='bold', color='#1E293B', va='center', ha='left', bbox=box_style_right
+            fontsize=8.8, fontweight='bold', color='#1E293B', va='center', ha='left', bbox=box_right
         )
 
-        # 3. الطبقة الأسفلتية بميل تصريف 2%
+        # 3. الطبقة الأسفلتية بميل تصريف واقعي 2%
         asphalt_poly = [[1.8, 1.45], [8.2, 1.45], [8.0, 2.35], [5.0, 2.52], [2.0, 2.35]]
         ax.add_patch(patches.Polygon(asphalt_poly, closed=True, linewidth=2.0, edgecolor='#0F172A', facecolor='#1E293B'))
 
-        # الأكتاف الجانبية
+        # الأكتاف الجانبية (Road Shoulders)
         ax.add_patch(patches.Polygon([[1.5, 1.45], [1.8, 1.45], [2.0, 2.35], [1.7, 2.35]], closed=True, edgecolor='#64748B', facecolor='#94A3B8'))
         ax.add_patch(patches.Polygon([[8.2, 1.45], [8.5, 1.45], [8.3, 2.35], [8.0, 2.35]], closed=True, edgecolor='#64748B', facecolor='#94A3B8'))
 
-        # خط التخطيط المروري
+        # خط التخطيط المروري (Center Lane Marking)
         ax.plot([2.5, 7.5], [2.42, 2.42], linestyle='--', color='#FACC15', linewidth=2.2)
-        ax.text(5.0, 1.90, ar_text(f"طبقة الأسفلت | السمك {T_cm:.0f} سم"), ha='center', va='center', fontsize=10, fontweight='bold', color='white')
+        ax.text(5.0, 1.90, f"Asphalt Pavement Layer | Thickness = {T_cm:.0f} cm", ha='center', va='center', fontsize=9.5, fontweight='bold', color='white')
 
         # تعليمات جانبية واضحة ومفصولة تماماً
         ax.annotate(
-            ar_text("كتف الطريق الجانبي"),
-            xy=(1.65, 1.95), xytext=(-4.3, 2.05),
+            "Compacted Road Shoulder",
+            xy=(1.65, 1.95), xytext=(-4.4, 2.05),
             arrowprops=dict(arrowstyle='->', color='#334155', lw=1.6),
-            fontsize=9.5, fontweight='bold', color='#334155', va='center', ha='left', bbox=box_style_left
+            fontsize=8.8, fontweight='bold', color='#334155', va='center', ha='left', bbox=box_left
         )
         ax.annotate(
-            ar_text("ميل تصريف الأمطار 2%"),
-            xy=(6.6, 2.46), xytext=(9.3, 2.45),
+            "Drainage Crown Slope (Camber 2%)",
+            xy=(6.6, 2.46), xytext=(9.2, 2.45),
             arrowprops=dict(arrowstyle='->', color='#0284C7', lw=1.6),
-            fontsize=9.5, fontweight='bold', color='#0284C7', va='center', ha='left', bbox=box_style_right
+            fontsize=8.8, fontweight='bold', color='#0284C7', va='center', ha='left', bbox=box_right
         )
 
-        # خطوط الأبعاد الهندسية
+        # خطوط الأبعاد الهندسية (Dimension Lines)
         ax.plot([2.0, 2.0], [2.35, 3.45], linestyle=':', color='#DC2626', lw=1.3)
         ax.plot([8.0, 8.0], [2.35, 3.45], linestyle=':', color='#DC2626', lw=1.3)
         ax.annotate('', xy=(2.0, 3.30), xytext=(8.0, 3.30), arrowprops=dict(arrowstyle='<->', color='#DC2626', lw=2.0))
-        ax.text(5.0, 3.68, ar_text(f"العرض = {W:.1f} م   |   الطول = {L:.1f} م"), ha='center', va='center', fontsize=10.5, fontweight='bold', color='#DC2626')
+        ax.text(5.0, 3.68, f"Road Width (W) = {W:.2f} m   |   Section Length (L) = {L:.2f} m", ha='center', va='center', fontsize=10.0, fontweight='bold', color='#DC2626')
 
-        # صندوق الملاحظات
+        # صندوق الملاحظات الهندسية
         ax.add_patch(patches.Rectangle((-4.2, -1.15), 18.4, 0.85, facecolor='#EFF6FF', edgecolor='#1D4ED8', linewidth=1.3))
-        ax.text(5.0, -0.72, ar_text(f"المقطع العرضي القياسي لفقرة: {w_cat_ar.split('(')[0].strip()}"), ha='center', va='center', fontsize=10, fontweight='bold', color='#1E3A8A')
+        ax.text(5.0, -0.72, f"STANDARD CROSS-SECTION: {w_cat_en} (Iraqi Ministry of Planning Specifications)", ha='center', va='center', fontsize=9.0, fontweight='bold', color='#1E3A8A')
 
-        ax.set_title(ar_text(f"المخطط المقطعي الهندسي التفصيلي - {b_cat_ar.split('(')[0].strip()}"), fontsize=13, fontweight='bold', color='#0F172A', pad=12)
+        ax.set_title(f"ENGINEERING CROSS-SECTION SCHEMATIC - {b_cat_en.upper()}", fontsize=12.5, fontweight='bold', color='#0F172A', pad=12)
 
     else:
         ax.set_xlim(-5.2, 15.2)
@@ -470,26 +376,26 @@ def generate_pdf_engineering_diagram(b_cat_en, w_cat_en, L, W, T_cm, boq_items, 
         # 1. طبقة التربة الطبيعية
         ax.add_patch(patches.Rectangle((1.6, 0.0), 6.8, 0.55, linewidth=1.2, edgecolor='#78350F', facecolor='#FEF3C7', hatch='///'))
         ax.annotate(
-            ar_text("أرض طبيعية محدولة"),
-            xy=(1.6, 0.27), xytext=(-4.7, 0.27),
+            "Compacted Natural Soil Bed",
+            xy=(1.6, 0.27), xytext=(-4.8, 0.27),
             arrowprops=dict(arrowstyle='->', color='#78350F', lw=1.6),
-            fontsize=9.5, fontweight='bold', color='#78350F', va='center', ha='left', bbox=box_style_left
+            fontsize=8.8, fontweight='bold', color='#78350F', va='center', ha='left', bbox=box_left
         )
 
         # 2. طبقة السبيس وخرسانة النظافة
         ax.add_patch(patches.Rectangle((1.9, 0.55), 6.2, 0.45, linewidth=1.3, edgecolor='#475569', facecolor='#E2E8F0', hatch='..'))
         ax.annotate(
-            ar_text("طبقة سبيس وصبة نظافة"),
-            xy=(8.1, 0.77), xytext=(9.2, 0.77),
+            "Sub-base & Blinding Concrete (1:3:6)",
+            xy=(8.1, 0.77), xytext=(9.1, 0.77),
             arrowprops=dict(arrowstyle='->', color='#334155', lw=1.6),
-            fontsize=9.5, fontweight='bold', color='#334155', va='center', ha='left', bbox=box_style_right
+            fontsize=8.8, fontweight='bold', color='#334155', va='center', ha='left', bbox=box_right
         )
 
-        # 3. الطبقات الإنشائية
+        # 3. الطبقات الإنشائية المضافة مع حديد التسليح والكانات
         palette = ['#CBD5E1', '#93C5FD', '#A7F3D0', '#FDE68A', '#DDD6FE', '#BAE6FD']
         current_y = 1.00
         items_to_draw = boq_items if len(boq_items) > 0 else [{
-            'ت': 1, 'الفقرة': w_cat_ar, 'الأبعاد': f"{L}x{W}x{T_cm}",
+            'ت': 1, 'الأبعاد': f"{L}m x {W}m x {T_cm}cm",
             'الكمية': round(L * W * (T_cm / 100.0), 2), 'الوحدة': 'م³', 'نوع الفقرة_EN': w_cat_en
         }]
 
@@ -501,40 +407,39 @@ def generate_pdf_engineering_diagram(b_cat_en, w_cat_en, L, W, T_cm, boq_items, 
 
             ax.add_patch(patches.Rectangle((x_start, current_y), w_rect, h_rect, linewidth=1.6, edgecolor='#0F172A', facecolor=c, hatch='..'))
 
-            # قضبان التسليح داخل المقطع
+            # قضبان حديد التسليح الواقعية داخل المقطع (Main Rebar & Stirrups)
             ax.plot([x_start + 0.18, x_start + w_rect - 0.18], [current_y + 0.14, current_y + 0.14], color='#DC2626', linewidth=2.0)
             ax.plot([x_start + 0.18, x_start + w_rect - 0.18], [current_y + h_rect - 0.14, current_y + h_rect - 0.14], color='#DC2626', linewidth=1.6)
             for rx in np.linspace(x_start + 0.25, x_start + w_rect - 0.25, 8):
                 ax.add_patch(patches.Circle((rx, current_y + 0.14), radius=0.045, color='#991B1B'))
                 ax.add_patch(patches.Circle((rx, current_y + h_rect - 0.14), radius=0.04, color='#991B1B'))
 
-            qty_txt = item['الكمية']
-            unit_ar = item.get('الوحدة', 'م³')
-            center_lbl = ar_text(f"فقرة {item['ت']}  |  الكمية: {qty_txt} {unit_ar}")
-            ax.text(5.0, current_y + h_rect / 2.0, center_lbl, ha='center', va='center', fontsize=9.2, fontweight='bold', color='#0F172A',
+            u_en = "m3" if item.get('الوحدة') == "م³" else ("m2" if item.get('الوحدة') == "م²" else "Ton")
+            dim_clean = str(item['الأبعاد']).encode('ascii', 'ignore').decode('ascii')
+            center_lbl = f"Item #{item['ت']}  |  Qty: {item['الكمية']} {u_en}  ({dim_clean})"
+            ax.text(5.0, current_y + h_rect / 2.0, center_lbl, ha='center', va='center', fontsize=8.6, fontweight='bold', color='#0F172A',
                     bbox=dict(boxstyle='round,pad=0.22', facecolor='white', edgecolor='#94A3B8', lw=0.8, alpha=0.92))
 
-            short_ar_item = str(item.get('الفقرة', w_cat_ar)).split('(')[0].split('[')[0].strip()
-            callout_txt = ar_text(f"فقرة {item['ت']}: {short_ar_item}")
+            callout_txt = f"Item {item['ت']}: {item.get('نوع الفقرة_EN', w_cat_en)[:30]}"
             if idx % 2 == 0:
                 ax.annotate(
                     callout_txt,
                     xy=(x_start + w_rect, current_y + h_rect / 2.0),
-                    xytext=(9.2, current_y + h_rect / 2.0),
+                    xytext=(9.1, current_y + h_rect / 2.0),
                     arrowprops=dict(arrowstyle='->', color='#1E3A8A', lw=1.6),
-                    fontsize=9.0, fontweight='bold', color='#1E3A8A', va='center', ha='left', bbox=box_style_right
+                    fontsize=8.5, fontweight='bold', color='#1E3A8A', va='center', ha='left', bbox=box_right
                 )
             else:
                 ax.annotate(
                     callout_txt,
                     xy=(x_start, current_y + h_rect / 2.0),
-                    xytext=(-4.7, current_y + h_rect / 2.0),
+                    xytext=(-4.8, current_y + h_rect / 2.0),
                     arrowprops=dict(arrowstyle='->', color='#0F172A', lw=1.6),
-                    fontsize=9.0, fontweight='bold', color='#0F172A', va='center', ha='left', bbox=box_style_left
+                    fontsize=8.5, fontweight='bold', color='#0F172A', va='center', ha='left', bbox=box_left
                 )
             current_y += h_rect + 0.10
 
-        # 4. الأعمدة الحاملة
+        # 4. الأعمدة الحاملة مع حديد التسليح
         col_h = 1.15
         for cx in [2.5, 7.1]:
             ax.add_patch(patches.Rectangle((cx, current_y), 0.42, col_h, linewidth=1.5, edgecolor='#0F172A', facecolor='#64748B'))
@@ -542,41 +447,40 @@ def generate_pdf_engineering_diagram(b_cat_en, w_cat_en, L, W, T_cm, boq_items, 
             ax.plot([cx + 0.34, cx + 0.34], [current_y, current_y + col_h], color='#EF4444', lw=1.5)
 
         ax.annotate(
-            ar_text("أعمدة خرسانية مسلحة"),
-            xy=(7.52, current_y + col_h * 0.5), xytext=(9.2, current_y + col_h * 0.5),
+            "Reinforced Concrete Columns (RC)",
+            xy=(7.52, current_y + col_h * 0.5), xytext=(9.1, current_y + col_h * 0.5),
             arrowprops=dict(arrowstyle='->', color='#475569', lw=1.6),
-            fontsize=9.2, fontweight='bold', color='#334155', va='center', ha='left', bbox=box_style_right
+            fontsize=8.8, fontweight='bold', color='#334155', va='center', ha='left', bbox=box_right
         )
         ax.annotate(
-            ar_text("حديد التسليح الرئيسي والكانات"),
-            xy=(2.5, current_y + col_h * 0.35), xytext=(-4.7, current_y + col_h * 0.35),
+            "Main Longitudinal Rebar & Stirrups",
+            xy=(2.5, current_y + col_h * 0.35), xytext=(-4.8, current_y + col_h * 0.35),
             arrowprops=dict(arrowstyle='->', color='#DC2626', lw=1.6),
-            fontsize=9.2, fontweight='bold', color='#DC2626', va='center', ha='left', bbox=box_style_left
+            fontsize=8.8, fontweight='bold', color='#DC2626', va='center', ha='left', bbox=box_left
         )
 
-        # 5. السقف العلوي
-        b_ar_short = b_cat_ar.split('(')[0].strip()
+        # 5. السقف العلوي للمنشأ
         if "House" in b_cat_en:
             roof_pts = [[2.0, current_y + col_h], [5.0, current_y + col_h + 0.85], [8.0, current_y + col_h]]
             ax.add_patch(patches.Polygon(roof_pts, closed=True, linewidth=1.8, edgecolor='#0F172A', facecolor='#38BDF8', alpha=0.9))
-            ax.text(5.0, current_y + col_h + 0.32, ar_text(b_ar_short), ha='center', va='center', fontsize=9.8, fontweight='bold', color='#0F172A')
+            ax.text(5.0, current_y + col_h + 0.32, b_cat_en.upper(), ha='center', va='center', fontsize=9.2, fontweight='bold', color='#0F172A')
             top_dim_y = current_y + col_h + 1.15
         else:
             ax.add_patch(patches.Rectangle((2.1, current_y + col_h), 5.8, 0.48, linewidth=1.8, edgecolor='#0F172A', facecolor='#38BDF8', alpha=0.9))
-            ax.text(5.0, current_y + col_h + 0.24, ar_text(f"الهيكل العلوي: {b_ar_short}"), ha='center', va='center', fontsize=9.8, fontweight='bold', color='#0F172A')
+            ax.text(5.0, current_y + col_h + 0.24, f"SUPERSTRUCTURE: {b_cat_en.upper()}", ha='center', va='center', fontsize=9.2, fontweight='bold', color='#0F172A')
             top_dim_y = current_y + col_h + 0.82
 
-        # 6. خط الأبعاد الهندسي الأعلى
+        # 6. خط الأبعاد الهندسي الأعلى (Dimension Line)
         ax.annotate('', xy=(2.1, top_dim_y), xytext=(7.9, top_dim_y), arrowprops=dict(arrowstyle='<->', color='#DC2626', lw=2.0))
-        ax.text(5.0, top_dim_y + 0.32, ar_text(f"الطول = {L:.1f} م  |  العرض = {W:.1f} م  |  السمك = {T_cm:.1f} سم"),
-                ha='center', va='center', fontsize=10, fontweight='bold', color='#DC2626')
+        ax.text(5.0, top_dim_y + 0.32, f"Length (L) = {L:.2f} m  |  Width (W) = {W:.2f} m  |  Thickness (T) = {T_cm:.1f} cm",
+                ha='center', va='center', fontsize=9.5, fontweight='bold', color='#DC2626')
 
         # 7. شريط الملاحظات السفلي
         ax.add_patch(patches.Rectangle((-4.6, -1.0), 19.2, 0.72, facecolor='#EFF6FF', edgecolor='#1D4ED8', linewidth=1.3))
-        ax.text(5.0, -0.64, ar_text("الرسم المقطعي يوضح تسلسل الطبقات الإنشائية والتسليح وفق الدليل القياسي العراقي"),
-                ha='center', va='center', fontsize=9.5, fontweight='bold', color='#1E3A8A')
+        ax.text(5.0, -0.64, "NOTE: Structural Cross-Section & Rebar Detailing According to Iraqi Standard Price Guide",
+                ha='center', va='center', fontsize=9.0, fontweight='bold', color='#1E3A8A')
 
-        ax.set_title(ar_text(f"المخطط المقطعي الإنشائي التفصيلي - {b_ar_short}"), fontsize=13, fontweight='bold', color='#0F172A', pad=12)
+        ax.set_title(f"ENGINEERING CROSS-SECTION SCHEMATIC - {b_cat_en.upper()}", fontsize=12.5, fontweight='bold', color='#0F172A', pad=12)
 
     ax.axis('off')
     plt.tight_layout()
@@ -1184,7 +1088,7 @@ with tab1:
         s3.metric("إجمالي أجور العمال", f"{tot_lab_all:,.0f} د.ع")
         s4.metric("إجمالي المساحة الكلية", f"{tot_area_all:,.1f} م²")
 
-        def generate_official_pdf(df_boq, total_iqd, comp_en, logo_file, b_cat_en, w_cat_en, L_val, W_val, T_val, boq_raw, b_cat_ar, w_cat_ar):
+        def generate_official_pdf(df_boq, total_iqd, comp_en, logo_file, b_cat_en, w_cat_en, L_val, W_val, T_val, boq_raw):
             pdf = FPDF(orientation='L', unit='mm', format='A4')
             pdf.add_page()
             
@@ -1236,7 +1140,7 @@ with tab1:
             pdf.add_page()
             pdf.set_font("Arial", 'B', 12)
             pdf.cell(0, 8, "ENGINEERING CROSS-SECTION & STRUCTURAL SCHEMATIC DIAGRAM", ln=True, align='C')
-            pdf_fig = generate_pdf_engineering_diagram(b_cat_en, w_cat_en, L_val, W_val, T_val, boq_raw, b_cat_ar, w_cat_ar)
+            pdf_fig = generate_pdf_engineering_diagram(b_cat_en, w_cat_en, L_val, W_val, T_val, boq_raw)
             with tempfile.NamedTemporaryFile(delete=False, suffix=".png") as tmp_img:
                 pdf_fig.savefig(tmp_img.name, format='png', bbox_inches='tight', dpi=200)
                 img_path = tmp_img.name
@@ -1268,8 +1172,7 @@ with tab1:
 
         pdf_bytes = generate_official_pdf(
             boq_df, grand_total, company_en_name, uploaded_logo,
-            b_en_lbl, w_en_lbl, length_m, width_m, thickness_cm, st.session_state.boq_list,
-            building_choice, item_choice
+            b_en_lbl, w_en_lbl, length_m, width_m, thickness_cm, st.session_state.boq_list
         )
         excel_bytes = generate_excel_boq(display_df, grand_total, tot_mat_all, tot_lab_all)
         dxf_bytes = generate_autocad_dxf(st.session_state.boq_list, b_en_lbl)
@@ -1301,7 +1204,7 @@ with tab1:
         with st.expander("🖼️ معاينة المخطط الهندسي المرفق في التقرير قبل التحميل", expanded=True):
             preview_fig = generate_pdf_engineering_diagram(
                 b_en_lbl, w_en_lbl, length_m, width_m, thickness_cm,
-                st.session_state.boq_list, building_choice, item_choice
+                st.session_state.boq_list
             )
             st.pyplot(preview_fig)
             plt.close(preview_fig)
