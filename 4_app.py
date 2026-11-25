@@ -4,8 +4,6 @@ import numpy as np
 import io
 import os
 import re
-import json
-import uuid
 import math
 import joblib
 import tempfile
@@ -16,9 +14,14 @@ from fpdf import FPDF
 from datetime import datetime
 
 # ==========================================
-# إعدادات الصفحة وتنسيق الواجهة العربية
+# إعدادات الصفحة وتنسيق الواجهة العربية (متجاوب للحاسبة والهاتف)
 # ==========================================
-st.set_page_config(page_title="نظام الذكاء الاصطناعي للتسعير الهندسي - العراق", page_icon="🏗️", layout="wide")
+st.set_page_config(
+    page_title="نظام الذكاء الاصطناعي للتسعير الهندسي - العراق",
+    page_icon="🏗️",
+    layout="wide",
+    initial_sidebar_state="collapsed"
+)
 
 st.markdown("""
 <style>
@@ -44,6 +47,7 @@ st.markdown("""
         border-radius: 8px;
         padding: 10px 12px;
         direction: rtl;
+        margin-bottom: 6px;
     }
     [data-testid="stMetricLabel"] {
         font-size: 0.88rem !important;
@@ -53,7 +57,7 @@ st.markdown("""
         line-height: 1.3 !important;
     }
     [data-testid="stMetricValue"] {
-        font-size: 1.28rem !important;
+        font-size: 1.22rem !important;
         font-weight: 700 !important;
         white-space: normal !important;
         overflow: visible !important;
@@ -67,8 +71,126 @@ st.markdown("""
         white-space: normal !important;
         overflow: visible !important;
     }
+
+    /* تحسين العرض على شاشات الهاتف (Mobile Responsive) */
+    @media (max-width: 900px) {
+        .block-container {
+            padding-left: 0.8rem !important;
+            padding-right: 0.8rem !important;
+            padding-top: 1.2rem !important;
+        }
+        [data-testid="stHorizontalBlock"] {
+            flex-direction: column !important;
+        }
+        [data-testid="column"] {
+            width: 100% !important;
+            flex: 1 1 100% !important;
+            min-width: 100% !important;
+        }
+        [data-testid="stMetricValue"] {
+            font-size: 1.15rem !important;
+        }
+        h1 { font-size: 1.35rem !important; }
+        h2 { font-size: 1.15rem !important; }
+        h3 { font-size: 1.05rem !important; }
+    }
 </style>
 """, unsafe_allow_html=True)
+
+# ==========================================
+# محرك تشكيل النصوص العربية للرسم الهندسي (Matplotlib) دون تقطيع
+# ==========================================
+def ar_text(text):
+    """ربط الحروف العربية وعكس اتجاهها لتظهر متصلة وصحيحة 100% في الرسومات الهندسية"""
+    if not text:
+        return ""
+    try:
+        import arabic_reshaper
+        from bidi.algorithm import get_display
+        return get_display(arabic_reshaper.reshape(str(text)))
+    except Exception:
+        pass
+
+    # محرك تشكيل عربي مدمج يعمل بدون مكتبات خارجية
+    forms = {
+        'ا': ('\uFE8D', '\uFE8E', '\uFE8D', '\uFE8E'),
+        'أ': ('\uFE83', '\uFE84', '\uFE83', '\uFE84'),
+        'إ': ('\uFE87', '\uFE88', '\uFE87', '\uFE88'),
+        'آ': ('\uFE81', '\uFE82', '\uFE81', '\uFE82'),
+        'ب': ('\uFE8F', '\uFE90', '\uFE91', '\uFE92'),
+        'ت': ('\uFE95', '\uFE96', '\uFE97', '\uFE98'),
+        'ث': ('\uFE99', '\uFE9A', '\uFE9B', '\uFE9C'),
+        'ج': ('\uFE9D', '\uFE9E', '\uFE9F', '\uFEA0'),
+        'ح': ('\uFEA1', '\uFEA2', '\uFEA3', '\uFEA4'),
+        'خ': ('\uFEA5', '\uFEA6', '\uFEA7', '\uFEA8'),
+        'د': ('\uFEA9', '\uFEAA', '\uFEA9', '\uFEAA'),
+        'ذ': ('\uFEAB', '\uFEAC', '\uFEAB', '\uFEAC'),
+        'ر': ('\uFEAD', '\uFEAE', '\uFEAD', '\uFEAE'),
+        'ز': ('\uFEAF', '\uFEB0', '\uFEAF', '\uFEB0'),
+        'س': ('\uFEB1', '\uFEB2', '\uFEB3', '\uFEB4'),
+        'ش': ('\uFEB5', '\uFEB6', '\uFEB7', '\uFEB8'),
+        'ص': ('\uFEB9', '\uFEBA', '\uFEBB', '\uFEBC'),
+        'ض': ('\uFEBD', '\uFEBE', '\uFEBF', '\uFEC0'),
+        'ط': ('\uFEC1', '\uFEC2', '\uFEC3', '\uFEC4'),
+        'ظ': ('\uFEC5', '\uFEC6', '\uFEC7', '\uFEC8'),
+        'ع': ('\uFEC9', '\uFECA', '\uFECB', '\uFECC'),
+        'غ': ('\uFECD', '\uFECE', '\uFECF', '\uFED0'),
+        'ف': ('\uFED1', '\uFED2', '\uFED3', '\uFED4'),
+        'ق': ('\uFED5', '\uFED6', '\uFED7', '\uFED8'),
+        'ك': ('\uFED9', '\uFEDA', '\uFEDB', '\uFEDC'),
+        'ل': ('\uFEDD', '\uFEDE', '\uFEDF', '\uFEE0'),
+        'م': ('\uFEE1', '\uFEE2', '\uFEE3', '\uFEE4'),
+        'ن': ('\uFEE5', '\uFEE6', '\uFEE7', '\uFEE8'),
+        'ه': ('\uFEE9', '\uFEEA', '\uFEEB', '\uFEEC'),
+        'ة': ('\uFE93', '\uFE94', '\uFE93', '\uFE94'),
+        'و': ('\uFEED', '\uFEEE', '\uFEED', '\uFEEE'),
+        'ؤ': ('\uFE85', '\uFE86', '\uFE85', '\uFE86'),
+        'ي': ('\uFEF1', '\uFEF2', '\uFEF3', '\uFEF4'),
+        'ى': ('\uFEEF', '\uFEF0', '\uFEEF', '\uFEF0'),
+        'ئ': ('\uFE89', '\uFE8A', '\uFE8B', '\uFE8C'),
+        'ء': ('\uFE80', '\uFE80', '\uFE80', '\uFE80'),
+    }
+    non_join_after = set(['ا', 'أ', 'إ', 'آ', 'د', 'ذ', 'ر', 'ز', 'و', 'ؤ', 'ة', 'ى', 'ء'])
+    lam_alef = {'ا': ('\uFEFB', '\uFEFC'), 'أ': ('\uFEF7', '\uFEF8'), 'إ': ('\uFEF9', '\uFEFA'), 'آ': ('\uFEF5', '\uFEF6')}
+
+    s = str(text)
+    tokens = re.findall(r'[\u0600-\u06FF]+|[^\u0600-\u06FF]+', s)
+    res_tokens = []
+    for tok in tokens:
+        if re.match(r'[\u0600-\u06FF]+', tok):
+            out = []
+            i = 0
+            n = len(tok)
+            prev_joins = False
+            while i < n:
+                ch = tok[i]
+                if ch not in forms:
+                    out.append(ch)
+                    prev_joins = False
+                    i += 1
+                    continue
+                if ch == 'ل' and i + 1 < n and tok[i + 1] in lam_alef:
+                    la = lam_alef[tok[i + 1]][1 if prev_joins else 0]
+                    out.append(la)
+                    prev_joins = False
+                    i += 2
+                    continue
+                next_joins = (i + 1 < n) and (tok[i + 1] in forms) and (ch not in non_join_after)
+                if prev_joins and next_joins:
+                    glyph = forms[ch][3]
+                elif prev_joins:
+                    glyph = forms[ch][1]
+                elif next_joins:
+                    glyph = forms[ch][2]
+                else:
+                    glyph = forms[ch][0]
+                out.append(glyph)
+                prev_joins = (ch not in non_join_after)
+                i += 1
+            res_tokens.append("".join(out)[::-1])
+        else:
+            res_tokens.append(tok)
+    return "".join(res_tokens[::-1])
 
 # ==========================================
 # 1. نظام الحماية ومفتاح التفعيل (الرمز مخفي عن الشاشة)
@@ -237,7 +359,7 @@ if 'boq_list' not in st.session_state:
     st.session_state.boq_list = []
 
 # ==========================================
-# 3. دوال الرسم الهندسي + التصدير (PDF / Excel / AutoCAD DXF / Revit Dynamo .dyn)
+# 3. دوال الرسم الهندسي الواقعي (مع تعليمات عربية واضحة) + التصدير (PDF / Excel / AutoCAD DXF)
 # ==========================================
 def get_en_building_label(ar_choice):
     mapping = {
@@ -265,77 +387,205 @@ def get_en_item_label(ar_item):
     }
     return mapping.get(ar_item, "Engineering Work Item")
 
-def generate_pdf_engineering_diagram(b_cat_en, w_cat_en, L, W, T_cm, boq_items):
-    fig, ax = plt.subplots(figsize=(10.5, 5.2), dpi=160)
+def generate_pdf_engineering_diagram(b_cat_en, w_cat_en, L, W, T_cm, boq_items, b_cat_ar="منشأ هندسي", w_cat_ar="فقرة إنشائية"):
+    plt.rcParams['font.sans-serif'] = ['DejaVu Sans', 'Arial', 'Tahoma']
+    plt.rcParams['axes.unicode_minus'] = False
+
+    fig, ax = plt.subplots(figsize=(11.5, 6.2), dpi=180)
     ax.set_facecolor('#F8FAFC')
-    
+
+    # إطار لوحة هندسية احترافية (Engineering Title Block Border)
     if "Road" in b_cat_en or "Asphalt" in w_cat_en:
-        ax.set_xlim(-1.5, 11.5)
-        ax.set_ylim(-0.8, 5.0)
-        ax.add_patch(patches.Rectangle((1.0, 0.3), 8.0, 0.55, linewidth=1.2, edgecolor='#78350F', facecolor='#FDE68A', hatch='///'))
-        ax.annotate("Sub-grade Soil Layer", xy=(1.0, 0.57), xytext=(-1.3, 0.57),
-                    arrowprops=dict(arrowstyle='->', color='#78350F', lw=1.2), fontsize=8.5, fontweight='bold', color='#78350F')
+        ax.set_xlim(-3.2, 13.2)
+        ax.set_ylim(-1.4, 5.8)
 
-        ax.add_patch(patches.Rectangle((1.2, 0.85), 7.6, 0.65, linewidth=1.2, edgecolor='#475569', facecolor='#CBD5E1', hatch='..'))
-        ax.annotate("Compacted Sub-base (Class B)", xy=(8.8, 1.17), xytext=(9.1, 1.17),
-                    arrowprops=dict(arrowstyle='->', color='#334155', lw=1.2), fontsize=8.5, fontweight='bold', color='#334155')
+        # إطار اللوحة
+        ax.add_patch(patches.Rectangle((-3.0, -1.2), 16.0, 6.8, fill=False, edgecolor='#0F172A', linewidth=2.0))
 
-        ax.add_patch(patches.Rectangle((1.5, 1.5), 7.0, 0.9, linewidth=2, edgecolor='#0F172A', facecolor='#334155'))
-        ax.text(5.0, 1.95, f"ASPHALT / CONCRETE PAVEMENT | L={L:.1f}m x W={W:.1f}m x T={T_cm:.0f}cm", ha='center', va='center', fontsize=8.5, fontweight='bold', color='white')
+        # 1. طبقة التربة الطبيعية (Sub-grade Soil)
+        ax.add_patch(patches.Rectangle((0.5, 0.1), 9.0, 0.65, linewidth=1.3, edgecolor='#78350F', facecolor='#FDE68A', hatch='///'))
+        ax.annotate(
+            ar_text("طبقة التربة الطبيعية المحدولة (Sub-grade)"),
+            xy=(0.5, 0.42), xytext=(-2.8, 0.42),
+            arrowprops=dict(arrowstyle='->', color='#78350F', lw=1.5),
+            fontsize=8.5, fontweight='bold', color='#78350F', va='center'
+        )
 
-        ax.plot([2.0, 8.0], [2.45, 2.45], linestyle='--', color='#FACC15', linewidth=2)
-        ax.annotate('', xy=(1.5, 2.9), xytext=(8.5, 2.9), arrowprops=dict(arrowstyle='<->', color='#DC2626', lw=1.5))
-        ax.text(5.0, 3.15, f"Road Width (W) = {W:.2f} m  |  Segment Length (L) = {L:.2f} m", ha='center', va='center', fontsize=9, fontweight='bold', color='#DC2626')
-        ax.set_title(f"ENGINEERING ROAD CROSS-SECTION & DIMENSIONS ({w_cat_en.upper()})", fontsize=11, fontweight='bold', color='#0F172A', pad=10)
+        # 2. طبقة السبيس الحصوي (Sub-base Class B)
+        ax.add_patch(patches.Rectangle((0.9, 0.75), 8.2, 0.70, linewidth=1.3, edgecolor='#475569', facecolor='#CBD5E1', hatch='..'))
+        ax.annotate(
+            ar_text("طبقة الأساس الحصوي / سبيس (Class B)"),
+            xy=(9.1, 1.10), xytext=(9.6, 1.10),
+            arrowprops=dict(arrowstyle='->', color='#1E293B', lw=1.5),
+            fontsize=8.5, fontweight='bold', color='#1E293B', va='center'
+        )
+
+        # 3. الطبقة الرابطة والسطحية الأسفلتية بميل تصريف واقعي (Camber 2%)
+        asphalt_poly = [[1.3, 1.45], [8.7, 1.45], [8.5, 2.35], [5.0, 2.52], [1.5, 2.35]]
+        ax.add_patch(patches.Polygon(asphalt_poly, closed=True, linewidth=2.0, edgecolor='#0F172A', facecolor='#1E293B'))
+
+        # الأكتاف الجانبية (Road Shoulders)
+        ax.add_patch(patches.Polygon([[0.9, 1.45], [1.3, 1.45], [1.5, 2.35], [1.1, 2.35]], closed=True, edgecolor='#64748B', facecolor='#94A3B8'))
+        ax.add_patch(patches.Polygon([[8.7, 1.45], [9.1, 1.45], [8.9, 2.35], [8.5, 2.35]], closed=True, edgecolor='#64748B', facecolor='#94A3B8'))
+
+        # علامات التخطيط المروري (Lane Markings)
+        ax.plot([2.2, 7.8], [2.42, 2.42], linestyle='--', color='#FACC15', linewidth=2.2)
+        ax.text(5.0, 1.92, ar_text(f"طبقة التبليط الأسفلتي | السمك = {T_cm:.0f} سم"), ha='center', va='center', fontsize=9, fontweight='bold', color='white')
+
+        # تعليمات جانبية للأسفلت والأكتاف
+        ax.annotate(
+            ar_text("كتف الطريق الجانبي (Shoulder)"),
+            xy=(1.1, 1.95), xytext=(-2.8, 2.05),
+            arrowprops=dict(arrowstyle='->', color='#334155', lw=1.5),
+            fontsize=8.5, fontweight='bold', color='#334155', va='center'
+        )
+        ax.annotate(
+            ar_text("ميل تصريف مياه الأمطار (Camber 2%)"),
+            xy=(6.8, 2.46), xytext=(9.6, 2.45),
+            arrowprops=dict(arrowstyle='->', color='#0284C7', lw=1.5),
+            fontsize=8.5, fontweight='bold', color='#0284C7', va='center'
+        )
+
+        # خطوط الأبعاد الهندسية الواقعية (Dimension Lines)
+        ax.plot([1.5, 1.5], [2.35, 3.4], linestyle=':', color='#DC2626', lw=1.2)
+        ax.plot([8.5, 8.5], [2.35, 3.4], linestyle=':', color='#DC2626', lw=1.2)
+        ax.annotate('', xy=(1.5, 3.25), xytext=(8.5, 3.25), arrowprops=dict(arrowstyle='<->', color='#DC2626', lw=1.8))
+        ax.text(5.0, 3.55, ar_text(f"عرض الطريق (W) = {W:.2f} م   |   طول المقطع (L) = {L:.2f} م"), ha='center', va='center', fontsize=9.5, fontweight='bold', color='#DC2626')
+
+        # صندوق الملاحظات الهندسية أسفل المخطط
+        ax.add_patch(patches.Rectangle((-2.7, -1.0), 15.4, 0.85, facecolor='#EFF6FF', edgecolor='#1D4ED8', linewidth=1.2))
+        ax.text(5.0, -0.58, ar_text(f"ملاحظة هندسية: المقطع العرضي القياسي لفقرة ({w_cat_ar.split('(')[0].strip()}) مطابق لمواصفات الطرق والجسور العراقية"), ha='center', va='center', fontsize=8.5, fontweight='bold', color='#1E3A8A')
+
+        ax.set_title(ar_text(f"المخطط المقطعي الهندسي التفصيلي - {b_cat_ar.split('(')[0].strip()}"), fontsize=12, fontweight='bold', color='#0F172A', pad=10)
+
     else:
-        ax.set_xlim(-2.5, 12.5)
+        ax.set_xlim(-3.8, 13.8)
         total_layers = max(1, len(boq_items))
-        max_y = max(5.8, 1.6 + total_layers * 0.85 + 1.8)
-        ax.set_ylim(-0.4, max_y)
+        max_y = max(7.2, 2.4 + total_layers * 0.95 + 2.4)
+        ax.set_ylim(-1.3, max_y)
 
-        ax.add_patch(patches.Rectangle((1.5, 0.2), 7.0, 0.55, linewidth=1.2, edgecolor='#78350F', facecolor='#FDE68A', hatch='///'))
-        ax.annotate("Excavation & Sub-base Layer", xy=(1.5, 0.47), xytext=(-2.3, 0.47),
-                    arrowprops=dict(arrowstyle='->', color='#78350F', lw=1.2), fontsize=8.5, fontweight='bold', color='#78350F')
+        # إطار اللوحة الهندسية
+        ax.add_patch(patches.Rectangle((-3.6, -1.1), 17.2, max_y + 0.9, fill=False, edgecolor='#0F172A', linewidth=2.0))
 
-        colors = ['#CBD5E1', '#94A3B8', '#64748B', '#BAE6FD', '#7DD3FC', '#A7F3D0']
-        current_y = 0.75
+        # 1. طبقة التربة الطبيعية أسفل الحفريات
+        ax.add_patch(patches.Rectangle((1.2, 0.0), 7.6, 0.55, linewidth=1.2, edgecolor='#78350F', facecolor='#FEF3C7', hatch='///'))
+        ax.annotate(
+            ar_text("أرض طبيعية محدولة (Natural Soil)"),
+            xy=(1.2, 0.27), xytext=(-3.4, 0.27),
+            arrowprops=dict(arrowstyle='->', color='#78350F', lw=1.5),
+            fontsize=8.5, fontweight='bold', color='#78350F', va='center'
+        )
+
+        # 2. طبقة السبيس وخرسانة النظافة (Blinding Concrete)
+        ax.add_patch(patches.Rectangle((1.5, 0.55), 7.0, 0.45, linewidth=1.3, edgecolor='#475569', facecolor='#E2E8F0', hatch='..'))
+        ax.annotate(
+            ar_text("طبقة سبيس + صبة نظافة (1:3:6)"),
+            xy=(8.5, 0.77), xytext=(9.3, 0.77),
+            arrowprops=dict(arrowstyle='->', color='#334155', lw=1.5),
+            fontsize=8.5, fontweight='bold', color='#334155', va='center'
+        )
+
+        # 3. رسم طبقات وعناصر الفقرات الإنشائية المضافة بواقعية هندسية
+        palette = ['#CBD5E1', '#93C5FD', '#A7F3D0', '#FDE68A', '#DDD6FE', '#BAE6FD']
+        current_y = 1.00
         items_to_draw = boq_items if len(boq_items) > 0 else [{
-            'ت': 1, 'الأبعاد': f"{L}m x {W}m x {T_cm}cm",
-            'الكمية': round(L * W * (T_cm / 100.0), 2), 'الوحدة': 'م3', 'نوع الفقرة_EN': w_cat_en
+            'ت': 1,
+            'الجزء الإنشائي': 'الجزء القياسي',
+            'الفقرة': w_cat_ar,
+            'الأبعاد': f"{L}m x {W}m x {T_cm}cm",
+            'الكمية': round(L * W * (T_cm / 100.0), 2),
+            'الوحدة': 'م³',
+            'نوع الفقرة_EN': w_cat_en
         }]
 
         for idx, item in enumerate(items_to_draw):
-            c = colors[idx % len(colors)]
-            w_rect = max(3.6, 7.0 - idx * 0.3)
+            c = palette[idx % len(palette)]
+            w_rect = max(4.2, 6.8 - idx * 0.28)
             x_start = 5.0 - (w_rect / 2.0)
-            rect = patches.Rectangle((x_start, current_y), w_rect, 0.72, linewidth=1.5, edgecolor='#0F172A', facecolor=c, hatch='..')
+            h_rect = 0.82
+
+            # جسم العنصر الخرساني / الإنشائي
+            rect = patches.Rectangle((x_start, current_y), w_rect, h_rect, linewidth=1.6, edgecolor='#0F172A', facecolor=c, hatch='..')
             ax.add_patch(rect)
-            
-            dim_txt = str(item['الأبعاد']).encode('ascii', 'ignore').decode('ascii')
+
+            # إظهار قضبان حديد التسليح الواقعية داخل المقطع (Rebar & Stirrups)
+            ax.plot([x_start + 0.18, x_start + w_rect - 0.18], [current_y + 0.14, current_y + 0.14], color='#DC2626', linewidth=2.0)
+            ax.plot([x_start + 0.18, x_start + w_rect - 0.18], [current_y + h_rect - 0.14, current_y + h_rect - 0.14], color='#DC2626', linewidth=1.6)
+            for rx in np.linspace(x_start + 0.25, x_start + w_rect - 0.25, 9):
+                ax.add_patch(patches.Circle((rx, current_y + 0.14), radius=0.045, color='#991B1B'))
+                ax.add_patch(patches.Circle((rx, current_y + h_rect - 0.14), radius=0.04, color='#991B1B'))
+
+            dim_txt = str(item['الأبعاد'])
             qty_txt = item['الكمية']
-            ax.text(5.0, current_y + 0.36, f"Part-{item['ت']} | {dim_txt} | Qty: {qty_txt}", ha='center', va='center', fontsize=8, fontweight='bold', color='#0F172A')
+            unit_ar = item.get('الوحدة', 'م³')
+            center_lbl = ar_text(f"فقرة ({item['ت']}) | الكمية: {qty_txt} {unit_ar} | ({dim_txt})")
+            ax.text(5.0, current_y + h_rect / 2.0, center_lbl, ha='center', va='center', fontsize=8.2, fontweight='bold', color='#0F172A',
+                    bbox=dict(boxstyle='round,pad=0.18', facecolor='white', edgecolor='none', alpha=0.82))
 
-            item_en_lbl = item.get('نوع الفقرة_EN', w_cat_en)
+            # تعليمة هندسية عربية على اليمين أو اليسار بالتناوب
+            short_ar_item = str(item.get('الفقرة', w_cat_ar)).split('(')[0].split('[')[0].strip()
+            callout_txt = ar_text(f"فقرة {item['ت']}: {short_ar_item}")
             if idx % 2 == 0:
-                ax.annotate(f"Item {item['ت']}: {item_en_lbl}", xy=(x_start + w_rect, current_y + 0.36), xytext=(8.8, current_y + 0.36),
-                            arrowprops=dict(arrowstyle='->', color='#1E3A8A', lw=1.2), fontsize=8, fontweight='bold', color='#1E3A8A')
+                ax.annotate(
+                    callout_txt,
+                    xy=(x_start + w_rect, current_y + h_rect / 2.0),
+                    xytext=(9.3, current_y + h_rect / 2.0),
+                    arrowprops=dict(arrowstyle='->', color='#1E3A8A', lw=1.5),
+                    fontsize=8.3, fontweight='bold', color='#1E3A8A', va='center'
+                )
             else:
-                ax.annotate(f"Item {item['ت']}: {item_en_lbl}", xy=(x_start, current_y + 0.36), xytext=(-2.3, current_y + 0.36),
-                            arrowprops=dict(arrowstyle='->', color='#0F172A', lw=1.2), fontsize=8, fontweight='bold', color='#0F172A')
-            current_y += 0.78
+                ax.annotate(
+                    callout_txt,
+                    xy=(x_start, current_y + h_rect / 2.0),
+                    xytext=(-3.4, current_y + h_rect / 2.0),
+                    arrowprops=dict(arrowstyle='->', color='#0F172A', lw=1.5),
+                    fontsize=8.3, fontweight='bold', color='#0F172A', va='center'
+                )
+            current_y += h_rect + 0.08
 
-        ax.add_patch(patches.Rectangle((2.5, current_y), 0.4, 0.95, linewidth=1.2, edgecolor='#334155', facecolor='#475569'))
-        ax.add_patch(patches.Rectangle((7.1, current_y), 0.4, 0.95, linewidth=1.2, edgecolor='#334155', facecolor='#475569'))
-        
+        # 4. الأعمدة الحاملة مع حديد التسليح الطولي
+        col_h = 1.15
+        for cx in [2.3, 7.3]:
+            ax.add_patch(patches.Rectangle((cx, current_y), 0.42, col_h, linewidth=1.5, edgecolor='#0F172A', facecolor='#64748B'))
+            ax.plot([cx + 0.08, cx + 0.08], [current_y, current_y + col_h], color='#EF4444', lw=1.5)
+            ax.plot([cx + 0.34, cx + 0.34], [current_y, current_y + col_h], color='#EF4444', lw=1.5)
+
+        ax.annotate(
+            ar_text("أعمدة خرسانية مسلحة (RC Columns)"),
+            xy=(7.72, current_y + col_h * 0.5), xytext=(9.3, current_y + col_h * 0.5),
+            arrowprops=dict(arrowstyle='->', color='#475569', lw=1.5),
+            fontsize=8.3, fontweight='bold', color='#334155', va='center'
+        )
+        ax.annotate(
+            ar_text("تسليح الحديد الرئيسي والكانات"),
+            xy=(2.3, current_y + col_h * 0.35), xytext=(-3.4, current_y + col_h * 0.35),
+            arrowprops=dict(arrowstyle='->', color='#DC2626', lw=1.5),
+            fontsize=8.3, fontweight='bold', color='#DC2626', va='center'
+        )
+
+        # 5. السقف العلوي للمنشأ
+        b_ar_short = b_cat_ar.split('(')[0].strip()
         if "House" in b_cat_en:
-            roof_pts = [[2.0, current_y + 0.95], [5.0, current_y + 1.65], [8.0, current_y + 0.95]]
-            ax.add_patch(patches.Polygon(roof_pts, closed=True, linewidth=1.5, edgecolor='#0F172A', facecolor='#38BDF8', alpha=0.8))
-            ax.text(5.0, current_y + 1.2, "RESIDENTIAL HOUSE", ha='center', va='center', fontsize=7.5, fontweight='bold', color='#0F172A')
+            roof_pts = [[1.8, current_y + col_h], [5.0, current_y + col_h + 0.85], [8.2, current_y + col_h]]
+            ax.add_patch(patches.Polygon(roof_pts, closed=True, linewidth=1.8, edgecolor='#0F172A', facecolor='#38BDF8', alpha=0.88))
+            ax.text(5.0, current_y + col_h + 0.32, ar_text(b_ar_short), ha='center', va='center', fontsize=8.8, fontweight='bold', color='#0F172A')
+            top_dim_y = current_y + col_h + 1.15
         else:
-            ax.add_patch(patches.Rectangle((2.1, current_y + 0.95), 5.8, 0.38, linewidth=1.5, edgecolor='#0F172A', facecolor='#38BDF8', alpha=0.8))
-            ax.text(5.0, current_y + 1.14, f"{b_cat_en.upper()} SUPERSTRUCTURE", ha='center', va='center', fontsize=8, fontweight='bold', color='#0F172A')
+            ax.add_patch(patches.Rectangle((1.9, current_y + col_h), 6.2, 0.45, linewidth=1.8, edgecolor='#0F172A', facecolor='#38BDF8', alpha=0.88))
+            ax.text(5.0, current_y + col_h + 0.22, ar_text(f"الهيكل العلوي: {b_ar_short}"), ha='center', va='center', fontsize=8.8, fontweight='bold', color='#0F172A')
+            top_dim_y = current_y + col_h + 0.78
 
-        ax.set_title(f"STRUCTURAL SECTION & ENGINEERING CALLOUTS - {b_cat_en.upper()}", fontsize=11, fontweight='bold', color='#0F172A', pad=10)
+        # 6. خط الأبعاد الهندسي الأعلى (Dimension Line)
+        ax.annotate('', xy=(1.9, top_dim_y), xytext=(8.1, top_dim_y), arrowprops=dict(arrowstyle='<->', color='#DC2626', lw=1.8))
+        ax.text(5.0, top_dim_y + 0.28, ar_text(f"الطول (L) = {L:.2f} م  |  العرض (W) = {W:.2f} م  |  السمك (T) = {T_cm:.1f} سم"),
+                ha='center', va='center', fontsize=9, fontweight='bold', color='#DC2626')
+
+        # 7. شريط ملاحظات هندسية أسفل اللوحة
+        ax.add_patch(patches.Rectangle((-3.3, -0.92), 16.6, 0.68, facecolor='#EFF6FF', edgecolor='#1D4ED8', linewidth=1.2))
+        ax.text(5.0, -0.58, ar_text("ملاحظة: الرسم المقطعي يوضح تسلسل الطبقات الإنشائية والتسليح وفق الدليل القياسي العراقي"),
+                ha='center', va='center', fontsize=8.5, fontweight='bold', color='#1E3A8A')
+
+        ax.set_title(ar_text(f"المخطط المقطعي الإنشائي التفصيلي - {b_ar_short}"), fontsize=12, fontweight='bold', color='#0F172A', pad=10)
 
     ax.axis('off')
     plt.tight_layout()
@@ -373,138 +623,6 @@ def generate_autocad_dxf(boq_items, b_cat_en):
     out_stream = io.StringIO()
     doc.write(out_stream)
     return out_stream.getvalue().encode('utf-8')
-
-def generate_revit_dynamo_file(boq_items, project_name, b_cat_en):
-    elements_data = []
-    for item in boq_items:
-        nums = re.findall(r"[-+]?\d*\.\d+|\d+", str(item['الأبعاد']))
-        L_val = float(nums[0]) if len(nums) > 0 else 10.0
-        W_val = float(nums[1]) if len(nums) > 1 else 10.0
-        T_val = float(nums[2]) if len(nums) > 2 else 10.0
-        elements_data.append({
-            "id": item['ت'],
-            "name": item.get('نوع الفقرة_EN', 'Structural Element'),
-            "L_m": L_val,
-            "W_m": W_val,
-            "T_cm": T_val,
-            "cost_iqd": item['المبلغ الإجمالي (دينار)']
-        })
-
-    embedded_py_code = f"""import clr
-clr.AddReference('RevitAPI')
-clr.AddReference('RevitServices')
-from Autodesk.Revit.DB import *
-from RevitServices.Persistence import DocumentManager
-from RevitServices.Transactions import TransactionManager
-
-doc = DocumentManager.Instance.CurrentDBDocument
-M_TO_FT = 3.28084
-
-boq_items = {json.dumps(elements_data)}
-
-TransactionManager.Instance.EnsureInTransaction(doc)
-levels = FilteredElementCollector(doc).OfClass(Level).ToElements()
-base_level = levels[0] if len(levels) > 0 else Level.Create(doc, 0.0)
-floor_type = FilteredElementCollector(doc).OfClass(FloorType).FirstElement()
-
-created_count = 0
-offset_x = 0.0
-
-if floor_type is not None:
-    for el in boq_items:
-        p1 = XYZ(offset_x * M_TO_FT, 0, 0)
-        p2 = XYZ((offset_x + el['L_m']) * M_TO_FT, 0, 0)
-        p3 = XYZ((offset_x + el['L_m']) * M_TO_FT, el['W_m'] * M_TO_FT, 0)
-        p4 = XYZ(offset_x * M_TO_FT, el['W_m'] * M_TO_FT, 0)
-        
-        loop = CurveLoop()
-        loop.Append(Line.CreateBound(p1, p2))
-        loop.Append(Line.CreateBound(p2, p3))
-        loop.Append(Line.CreateBound(p3, p4))
-        loop.Append(Line.CreateBound(p4, p1))
-        
-        fl = Floor.Create(doc, [loop], floor_type.Id, base_level.Id)
-        comm = fl.get_Parameter(BuiltInParameter.ALL_MODEL_INSTANCE_COMMENTS)
-        if comm:
-            comm.Set("Part-" + str(el['id']) + " | " + str(el['name']) + " | Cost: " + str(el['cost_iqd']) + " IQD")
-        offset_x += el['L_m'] + 3.0
-        created_count += 1
-
-TransactionManager.Instance.TransactionTaskDone()
-OUT = "Successfully Generated " + str(created_count) + " 3D BIM Elements in Revit!"
-"""
-
-    node_id = str(uuid.uuid4()).replace("-", "")
-    dyn_structure = {
-        "Uuid": str(uuid.uuid4()),
-        "IsCustomNode": False,
-        "Description": f"Iraqi Engineering AI BIM Generator - {b_cat_en}",
-        "Name": "Iraqi_BOQ_Revit_BIM_Model",
-        "ElementResolver": {"ResolutionMap": {}},
-        "Inputs": [],
-        "Outputs": [],
-        "Nodes": [
-            {
-                "ConcreteType": "PythonNodeModels.PythonNode, PythonNodeModels",
-                "NodeType": "PythonScriptNode",
-                "Code": embedded_py_code,
-                "Engine": "CPython3",
-                "VariableInputPorts": True,
-                "Id": node_id,
-                "Inputs": [],
-                "Outputs": [
-                    {
-                        "Id": str(uuid.uuid4()).replace("-", ""),
-                        "Name": "OUT",
-                        "Description": "BIM Generation Result",
-                        "UsingDefaultValue": False,
-                        "Level": 2,
-                        "UseLevels": False,
-                        "KeepListStructure": False
-                    }
-                ],
-                "Replication": "Disabled",
-                "Description": "Generates 3D Structural Elements directly inside Autodesk Revit without external plugins."
-            }
-        ],
-        "Connectors": [],
-        "Dependencies": [],
-        "NodeLibraryDependencies": [],
-        "Bindings": [],
-        "View": {
-            "Dynamo": {
-                "ScaleFactor": 1.0,
-                "HasRunWithoutCrash": True,
-                "IsVisibleInDynamoLibrary": True,
-                "Version": "2.13.0.0",
-                "RunType": "Manual",
-                "RunPeriod": "1000"
-            },
-            "Camera": {
-                "Name": "Background Preview",
-                "EyeX": -17.0, "EyeY": 24.0, "EyeZ": 50.0,
-                "LookX": 12.0, "LookY": -13.0, "LookZ": -58.0,
-                "UpX": 0.0, "UpY": 1.0, "UpZ": 0.0
-            },
-            "NodeViews": [
-                {
-                    "ShowGeometry": True,
-                    "Name": "Iraqi AI BIM Generator (Run in Revit)",
-                    "Id": node_id,
-                    "IsSetAsInput": False,
-                    "IsSetAsOutput": True,
-                    "Excluded": False,
-                    "X": 250.0,
-                    "Y": 200.0
-                }
-            ],
-            "Annotations": [],
-            "X": 0.0,
-            "Y": 0.0,
-            "Zoom": 1.0
-        }
-    }
-    return json.dumps(dyn_structure, indent=2).encode('utf-8')
 
 # ==========================================
 # 4. القائمة الجانبية لتخصيص هوية الشركة (White-Label)
@@ -552,7 +670,6 @@ item_code_map = {
     "الأعمال الترابية والحفريات والدفن (Earthworks)": 9
 }
 
-# ربط كل نوع منشأ بالفقرات الإنشائية القياسية التي يحتاجها فعلياً
 building_items_map = {
     "بناية متعددة الطوابق (Multi-Story Building)": [
         "الأسس - صب خرسانة غير مسلحة (1-1) [1:3:6]",
@@ -1050,10 +1167,10 @@ with col2:
 st.divider()
 
 # ==========================================
-# 6. جدول الكميات وتصدير (PDF + Excel + AutoCAD DXF + Revit Dynamo .dyn)
+# 6. جدول الكميات وتصدير (PDF + Excel + AutoCAD DXF)
 # ==========================================
 tab1, tab2, tab3 = st.tabs([
-    "📋 جدول الكميات (BOQ) والتصدير (PDF + Excel + AutoCAD + Revit)",
+    "📋 جدول الكميات (BOQ) والتصدير (PDF + Excel + AutoCAD)",
     "👷 جدول أجور العاملين الرسمي (18 محافظة)",
     "📈 منحنى التنبؤ بالأسعار (2026 - 2030)"
 ])
@@ -1076,7 +1193,7 @@ with tab1:
         s3.metric("إجمالي أجور العمال", f"{tot_lab_all:,.0f} د.ع")
         s4.metric("إجمالي المساحة الكلية", f"{tot_area_all:,.1f} م²")
 
-        def generate_official_pdf(df_boq, total_iqd, comp_en, logo_file, b_cat_en, w_cat_en, L_val, W_val, T_val, boq_raw):
+        def generate_official_pdf(df_boq, total_iqd, comp_en, logo_file, b_cat_en, w_cat_en, L_val, W_val, T_val, boq_raw, b_cat_ar, w_cat_ar):
             pdf = FPDF(orientation='L', unit='mm', format='A4')
             pdf.add_page()
             
@@ -1128,13 +1245,13 @@ with tab1:
             pdf.add_page()
             pdf.set_font("Arial", 'B', 12)
             pdf.cell(0, 8, "ENGINEERING CROSS-SECTION & STRUCTURAL SCHEMATIC DIAGRAM", ln=True, align='C')
-            pdf_fig = generate_pdf_engineering_diagram(b_cat_en, w_cat_en, L_val, W_val, T_val, boq_raw)
+            pdf_fig = generate_pdf_engineering_diagram(b_cat_en, w_cat_en, L_val, W_val, T_val, boq_raw, b_cat_ar, w_cat_ar)
             with tempfile.NamedTemporaryFile(delete=False, suffix=".png") as tmp_img:
-                pdf_fig.savefig(tmp_img.name, format='png', bbox_inches='tight', dpi=160)
+                pdf_fig.savefig(tmp_img.name, format='png', bbox_inches='tight', dpi=180)
                 img_path = tmp_img.name
             plt.close(pdf_fig)
 
-            pdf.image(img_path, x=22, y=28, w=250)
+            pdf.image(img_path, x=18, y=24, w=260)
             os.remove(img_path)
 
             pdf.set_y(-15)
@@ -1160,14 +1277,14 @@ with tab1:
 
         pdf_bytes = generate_official_pdf(
             boq_df, grand_total, company_en_name, uploaded_logo,
-            b_en_lbl, w_en_lbl, length_m, width_m, thickness_cm, st.session_state.boq_list
+            b_en_lbl, w_en_lbl, length_m, width_m, thickness_cm, st.session_state.boq_list,
+            building_choice, item_choice
         )
         excel_bytes = generate_excel_boq(display_df, grand_total, tot_mat_all, tot_lab_all)
         dxf_bytes = generate_autocad_dxf(st.session_state.boq_list, b_en_lbl)
-        dyn_bytes = generate_revit_dynamo_file(st.session_state.boq_list, project_name, b_en_lbl)
 
         st.markdown("### 📥 تصدير الملفات الهندسية والمخططات المعتمدة:")
-        ex1, ex2, ex3, ex4 = st.columns(4)
+        ex1, ex2, ex3 = st.columns(3)
         with ex1:
             st.download_button(
                 label="📄 تحميل التقرير الرسمي (PDF)",
@@ -1189,16 +1306,12 @@ with tab1:
                 file_name=f"Structural_Plan_{datetime.now().strftime('%Y%m%d')}.dxf",
                 mime="application/dxf"
             )
-        with ex4:
-            st.download_button(
-                label="🏗️ تصدير للريفيت (Revit .dyn)",
-                data=dyn_bytes,
-                file_name=f"Revit_BIM_Generator_{datetime.now().strftime('%Y%m%d')}.dyn",
-                mime="application/json"
-            )
 
-        with st.expander("🖼️ معاينة المخطط الهندسي المرفق في التقرير قبل التحميل", expanded=False):
-            preview_fig = generate_pdf_engineering_diagram(b_en_lbl, w_en_lbl, length_m, width_m, thickness_cm, st.session_state.boq_list)
+        with st.expander("🖼️ معاينة المخطط الهندسي المرفق في التقرير قبل التحميل", expanded=True):
+            preview_fig = generate_pdf_engineering_diagram(
+                b_en_lbl, w_en_lbl, length_m, width_m, thickness_cm,
+                st.session_state.boq_list, building_choice, item_choice
+            )
             st.pyplot(preview_fig)
             plt.close(preview_fig)
 
